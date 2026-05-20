@@ -1,0 +1,22 @@
+﻿{
+  "schemaVersion": 1,
+  "id": "vibevisuals",
+  "version": "0.1.0",
+  "name": "SupsVisuals",
+  "description": "Clean SupsVisuals baseline with shader card",
+  "authors": [
+    "suppelemen"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "ru.suppelemen.vibevisuals.SupsVisualsClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "1.21.11",
+    "fabric-api": "*",
+    "java": ">=21"
+  }
+}
