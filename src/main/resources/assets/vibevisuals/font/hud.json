@@ -1,0 +1,14 @@
+{
+  "providers": [
+    {
+      "type": "ttf",
+      "file": "vibevisuals:inter.ttf",
+      "size": 20.0,
+      "oversample": 4.0,
+      "shift": [
+        0.0,
+        0.0
+      ]
+    }
+  ]
+}

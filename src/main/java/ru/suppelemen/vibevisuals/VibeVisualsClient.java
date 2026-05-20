@@ -4,12 +4,13 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.util.Identifier;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
 
-public class SupsVisualsClient implements ClientModInitializer {
+public class VibeVisualsClient implements ClientModInitializer {
     public static final String MOD_ID = "vibevisuals";
 
     @Override
@@ -22,8 +23,11 @@ public class SupsVisualsClient implements ClientModInitializer {
                 (DrawContext context, RenderTickCounter tickCounter) -> {
                     MinecraftClient client = MinecraftClient.getInstance();
 
-                    // Keep the custom HUD hidden while debug or GUI screens are visible.
-                    if (client.getDebugHud().shouldShowDebugHud() || client.currentScreen != null) {
+                    if (client.getDebugHud().shouldShowDebugHud()) {
+                        return;
+                    }
+
+                    if (client.currentScreen != null && !(client.currentScreen instanceof ChatScreen)) {
                         return;
                     }
 

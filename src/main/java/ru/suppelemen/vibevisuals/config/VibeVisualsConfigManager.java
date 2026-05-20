@@ -3,7 +3,7 @@ package ru.suppelemen.vibevisuals.config;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.fabricmc.loader.api.FabricLoader;
-import ru.suppelemen.vibevisuals.SupsVisualsClient;
+import ru.suppelemen.vibevisuals.VibeVisualsClient;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -15,7 +15,7 @@ public final class VibeVisualsConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FabricLoader.getInstance()
             .getConfigDir()
-            .resolve(SupsVisualsClient.MOD_ID + ".json");
+            .resolve(VibeVisualsClient.MOD_ID + ".json");
 
     private static VibeVisualsConfig config = new VibeVisualsConfig();
 
