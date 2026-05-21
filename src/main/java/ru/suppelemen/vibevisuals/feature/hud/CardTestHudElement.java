@@ -13,6 +13,7 @@ import ru.suppelemen.vibevisuals.VibeVisualsClient;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudCardElement;
+import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,14 +51,15 @@ public class CardTestHudElement extends HudCardElement {
         float textScale = config.textScale;
         int titleTextHeight = scaledTextHeight(textScale);
         int titleIconY = y + config.titleY + Math.max(0, (titleTextHeight - config.titleIconSize) / 2) + config.titleIconYOffset;
-        int titleTextY = y + config.titleY + Math.max(0, (config.titleIconSize - titleTextHeight) / 2);
+        int titleTextY = y + config.titleY + Math.max(0, (config.titleIconSize - titleTextHeight) / 2) + config.titleTextYOffset;
 
-        drawTitleIcon(context, x + padding, titleIconY, config.titleIconSize);
+        drawTitleBar(context, x, y, config);
+        drawTitleIcon(context, x + padding + config.titleIconXOffset, titleIconY, config.titleIconSize);
         drawScaledText(
                 context,
                 client,
                 hudText("Potions", true),
-                x + padding + config.titleIconSize + 6,
+                x + padding + config.titleIconSize + 6 + config.titleTextXOffset,
                 titleTextY,
                 config.titleColor,
                 textScale
@@ -97,21 +99,43 @@ public class CardTestHudElement extends HudCardElement {
         int rowCenterY = rowTop + rowHeight / 2;
         int textX = iconX + config.iconSize + 4;
         int textHeight = scaledTextHeight(config.effectTextScale);
+        int timerHeight = scaledTextHeight(config.timerTextScale);
         int iconY = rowCenterY - config.iconSize / 2 + config.effectIconYOffset;
         int textY = rowCenterY - textHeight / 2;
-        Text durationText = hudText(duration, false);
+        int timerY = rowCenterY - timerHeight / 2 + config.timerYOffset;
+        Text durationText = hudText(duration, true);
 
         drawEffectIcon(context, effect, iconX, iconY, config.iconSize);
-        drawScaledText(context, client, hudText(name, false), textX, textY, config.subtitleColor, config.effectTextScale);
+        drawScaledText(context, client, hudText(name, true), textX, textY, config.subtitleColor, config.effectTextScale);
         drawScaledText(
                 context,
                 client,
                 durationText,
-                cardX + config.width - config.padding - scaledTextWidth(client, durationText, config.effectTextScale),
-                textY,
+                cardX + config.width - config.padding - scaledTextWidth(client, durationText, config.timerTextScale) + config.timerXOffset,
+                timerY,
                 config.timerColor,
-                config.effectTextScale
+                config.timerTextScale
         );
+    }
+
+    private static void drawTitleBar(DrawContext context, int x, int y, VibeVisualsConfig.CardConfig config) {
+        int barHeight = Math.min(config.titleBarHeight, config.height);
+        if (barHeight <= 0 || config.titleBarOpacity <= 0.0f) {
+            return;
+        }
+
+        context.enableScissor(x, y, x + config.width, y + barHeight);
+        HudCardRenderer.drawOverlayCard(
+                context,
+                x,
+                y,
+                config.width,
+                config.height,
+                config.radius,
+                config.titleBarColor,
+                config.titleBarOpacity
+        );
+        context.disableScissor();
     }
 
     private static List<StatusEffectInstance> getVisibleEffects(MinecraftClient client) {

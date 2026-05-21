@@ -36,6 +36,19 @@ public final class HudCardRenderer {
         drawRoundedRectNoOverlap(context, x, y, width, height, Math.round(radius), colorWithOpacity(0x05060D, opacity));
     }
 
+    public static void drawOverlayCard(
+            DrawContext context,
+            int x,
+            int y,
+            int width,
+            int height,
+            float radius,
+            int color,
+            float opacity
+    ) {
+        drawNineSliceCard(context, x, y, width, height, Math.round(radius), color, opacity);
+    }
+
     private static void drawShaderCard(
             DrawContext context,
             int x,
@@ -76,7 +89,25 @@ public final class HudCardRenderer {
         }
 
         int corner = Math.max(1, Math.min(radius, Math.min(width, height) / 2));
-        int color = colorWithOpacity(0x11151F, opacity);
+        drawNineSliceCard(context, x, y, width, height, radius, 0x11151F, opacity);
+    }
+
+    private static void drawNineSliceCard(
+            DrawContext context,
+            int x,
+            int y,
+            int width,
+            int height,
+            int radius,
+            int rgb,
+            float opacity
+    ) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        int corner = Math.max(1, Math.min(radius, Math.min(width, height) / 2));
+        int color = colorWithOpacity(rgb, opacity);
         int srcCorner = ROUNDED_CARD_CORNER_SIZE;
         int srcCenter = ROUNDED_CARD_TEXTURE_SIZE - srcCorner * 2;
         int innerWidth = Math.max(0, width - corner * 2);

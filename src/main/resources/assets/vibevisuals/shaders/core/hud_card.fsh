@@ -23,7 +23,7 @@ void main() {
     vec2 uv = texCoord0;
     float aspect = max(vertexColor.g * 8.0, 1.0);
     vec2 point = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);
-    float radius = clamp(vertexColor.r * 0.5, 0.004, 0.22);
+    float radius = clamp(vertexColor.r * 0.5, 0.0, 0.5);
     float distance = roundedBoxSdf(point, vec2(aspect * 0.5, 0.5), radius);
     float edge = fwidth(distance);
     float mask = 1.0 - smoothstep(-edge, edge, distance);

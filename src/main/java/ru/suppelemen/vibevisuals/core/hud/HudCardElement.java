@@ -20,7 +20,7 @@ public abstract class HudCardElement extends HudElement {
     public final void render(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode) {
         syncFromConfig();
 
-        if (!enabled || !shouldRenderCard(client)) {
+        if (!enabled || (!editorMode && !shouldRenderCard(client))) {
             return;
         }
 

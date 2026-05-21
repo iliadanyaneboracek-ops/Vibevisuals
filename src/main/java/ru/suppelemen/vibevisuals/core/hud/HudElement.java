@@ -25,14 +25,7 @@ public abstract class HudElement {
     public abstract void render(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode);
 
     protected void drawEditorOutline(DrawContext context) {
-        int ix = (int) Math.round(x);
-        int iy = (int) Math.round(y);
-        int color = 0xAA8B5CF6;
-
-        context.fill(ix, iy, ix + width, iy + 1, color);
-        context.fill(ix, iy + height - 1, ix + width, iy + height, color);
-        context.fill(ix, iy, ix + 1, iy + height, color);
-        context.fill(ix + width - 1, iy, ix + width, iy + height, color);
+        // Selection/hover outlines are drawn by HudEditorScreen.
     }
 
     public boolean isEnabled() {
@@ -41,5 +34,38 @@ public abstract class HudElement {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public int getX() {
+        return (int) Math.round(x);
+    }
+
+    public int getY() {
+        return (int) Math.round(y);
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
+    public void setPosition(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public boolean contains(double mouseX, double mouseY) {
+        return mouseX >= x && mouseY >= y && mouseX <= x + width && mouseY <= y + height;
     }
 }

@@ -3,6 +3,8 @@
   "package": "ru.suppelemen.vibevisuals.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ClientPlayNetworkHandlerMixin",
+    "GameMenuScreenMixin",
     "InGameHudMixin"
   ],
   "injectors": {
