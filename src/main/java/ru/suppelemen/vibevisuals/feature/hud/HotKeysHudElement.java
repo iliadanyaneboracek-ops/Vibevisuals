@@ -157,7 +157,15 @@ public class HotKeysHudElement extends HudElement {
     }
 
     private static List<HotKeyEntry> getEntries() {
-        return List.of(new HotKeyEntry("Reload Config", getReloadKeyName()));
+        return List.of(
+                new HotKeyEntry("Reload Config", getReloadKeyName()),
+                new HotKeyEntry("FullBright", getFullBrightKeyName())
+        );
+    }
+
+    private static String getFullBrightKeyName() {
+        KeyBinding keyBinding = VibeVisualsClient.getFullBrightKey();
+        return keyBinding != null ? keyBinding.getBoundKeyLocalizedText().getString() : "B";
     }
 
     private record HotKeyEntry(String label, String key) {

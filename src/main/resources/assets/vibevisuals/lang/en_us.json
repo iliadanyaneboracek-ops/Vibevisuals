@@ -2,6 +2,7 @@
   "modmenu.nameTranslation.vibevisuals": "SupsVisuals",
   "category.vibevisuals.controls": "VibeVisuals",
   "key.vibevisuals.reload_config": "Reload config",
+  "key.vibevisuals.fullbright": "FullBright",
   "screen.vibevisuals.hud_editor": "HUD Editor",
   "screen.vibevisuals.configure": "Configure",
   "screen.vibevisuals.done": "Done",

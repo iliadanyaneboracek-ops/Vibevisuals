@@ -3,6 +3,7 @@
   "package": "ru.suppelemen.vibevisuals.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ChatScreenMixin",
     "ClientPlayNetworkHandlerMixin",
     "GameMenuScreenMixin",
     "InGameHudMixin"

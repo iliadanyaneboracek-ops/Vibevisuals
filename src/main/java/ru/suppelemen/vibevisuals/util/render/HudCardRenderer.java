@@ -19,6 +19,12 @@ public final class HudCardRenderer {
                     .withFragmentShader(Identifier.of(VibeVisualsClient.MOD_ID, "core/hud_card"))
                     .build()
     );
+    private static final RenderPipeline HUD_OUTLINE_PIPELINE = RenderPipelines.register(
+            RenderPipeline.builder(RenderPipelines.POSITION_TEX_COLOR_SNIPPET)
+                    .withLocation(Identifier.of(VibeVisualsClient.MOD_ID, "pipeline/hud_outline"))
+                    .withFragmentShader(Identifier.of(VibeVisualsClient.MOD_ID, "core/hud_outline"))
+                    .build()
+    );
 
     private HudCardRenderer() {
     }
@@ -47,6 +53,33 @@ public final class HudCardRenderer {
             float opacity
     ) {
         drawNineSliceCard(context, x, y, width, height, Math.round(radius), color, opacity);
+    }
+
+    public static void drawShaderOutline(
+            DrawContext context,
+            int x,
+            int y,
+            int width,
+            int height,
+            float radius,
+            float thickness,
+            float opacity
+    ) {
+        context.drawTexture(
+                HUD_OUTLINE_PIPELINE,
+                WHITE_TEXTURE,
+                x,
+                y,
+                0.0f,
+                0.0f,
+                width,
+                height,
+                1,
+                1,
+                1,
+                1,
+                colorWithRadiusThicknessOpacity(radius, width, height, thickness, opacity)
+        );
     }
 
     private static void drawShaderCard(
@@ -221,6 +254,17 @@ public final class HudCardRenderer {
         int encodedAspect = Math.max(0, Math.min(255, Math.round((aspect / 8.0f) * 255.0f)));
         int alpha = Math.max(0, Math.min(255, Math.round(opacity * 255.0f)));
         return (alpha << 24) | (encodedRadius << 16) | (encodedAspect << 8) | 0xFF;
+    }
+
+    private static int colorWithRadiusThicknessOpacity(float radius, int width, int height, float thickness, float opacity) {
+        float normalizedRadius = height <= 0 ? 0.0f : radius / (height * 0.5f);
+        float aspect = height <= 0 ? 1.0f : width / (float) height;
+        float normalizedThickness = height <= 0 ? 0.02f : thickness / height;
+        int encodedRadius = Math.max(0, Math.min(255, Math.round(normalizedRadius * 255.0f)));
+        int encodedAspect = Math.max(0, Math.min(255, Math.round((aspect / 8.0f) * 255.0f)));
+        int encodedThickness = Math.max(0, Math.min(255, Math.round(normalizedThickness * 255.0f)));
+        int alpha = Math.max(0, Math.min(255, Math.round(opacity * 255.0f)));
+        return (alpha << 24) | (encodedRadius << 16) | (encodedAspect << 8) | encodedThickness;
     }
 
 }

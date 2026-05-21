@@ -2,6 +2,7 @@
   "modmenu.nameTranslation.vibevisuals": "VibeVisuals",
   "category.vibevisuals.controls": "VibeVisuals",
   "key.vibevisuals.reload_config": "Перезагрузить конфиг",
+  "key.vibevisuals.fullbright": "FullBright",
   "screen.vibevisuals.hud_editor": "Редактор HUD",
   "screen.vibevisuals.configure": "Настроить",
   "screen.vibevisuals.done": "Готово",
