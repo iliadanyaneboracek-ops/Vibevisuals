@@ -23,6 +23,7 @@ import ru.suppelemen.vibevisuals.feature.keybind.FullBrightController;
 import ru.suppelemen.vibevisuals.feature.keybind.MultiKeyBindingManager;
 import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
+import ru.suppelemen.vibevisuals.feature.pvp.ShiftUpController;
 import ru.suppelemen.vibevisuals.feature.screen.MarkersScreen;
 import ru.suppelemen.vibevisuals.feature.sound.CustomHitSoundPlayer;
 import ru.suppelemen.vibevisuals.feature.visual.ProjectilePrediction;
@@ -128,6 +129,7 @@ public class VibeVisualsClient implements ClientModInitializer {
                 PvpCombatTracker.startCombat(target);
                 if (isCriticalHit(player)) {
                     CustomHitSoundPlayer.playCrit();
+                    ShiftUpController.onCritHit();
                 }
             }
 
@@ -137,6 +139,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             PvpCombatTracker.clearIfExpired();
             PvpCombatTracker.tick(client);
+            ShiftUpController.tick(client);
         });
     }
 

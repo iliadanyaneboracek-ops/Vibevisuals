@@ -302,6 +302,7 @@
     "screen.vibevisuals.feature.custom_hand":  "Custom Hand",
     "screen.vibevisuals.feature.markers":  "Markers",
     "screen.vibevisuals.feature.crit_hit_sound":  "Crit Hit Sound",
+    "screen.vibevisuals.feature.shift_up":  "Shift Up",
     "screen.vibevisuals.setting.hideVanilla":  "Hides the vanilla crosshair while the custom crosshair is enabled.",
     "screen.vibevisuals.setting.length":  "Length of each crosshair arm.",
     "screen.vibevisuals.setting.thickness":  "Pixel thickness of the crosshair strokes.",

@@ -240,6 +240,7 @@
     "screen.vibevisuals.feature.custom_hand":  "Кастомная рука",
     "screen.vibevisuals.feature.markers":  "Метки",
     "screen.vibevisuals.feature.crit_hit_sound":  "Звук крита",
+    "screen.vibevisuals.feature.shift_up":  "Авто-присед при крите",
     "screen.vibevisuals.setting.hideVanilla":  "Скрывает обычный прицел Minecraft, когда включен кастомный.",
     "screen.vibevisuals.setting.length":  "Длина каждой линии прицела.",
     "screen.vibevisuals.setting.thickness":  "Толщина линий прицела в пикселях.",

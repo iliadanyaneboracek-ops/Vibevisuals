@@ -36,6 +36,7 @@ public class VibeVisualsConfig {
     public CustomCrosshairConfig customCrosshair = CustomCrosshairConfig.defaults();
     public MarkersConfig markers = MarkersConfig.defaults();
     public CustomHitSoundConfig customHitSound = CustomHitSoundConfig.defaults();
+    public ShiftUpConfig shiftUp = ShiftUpConfig.defaults();
     public VisualEffectsConfig visualEffects = VisualEffectsConfig.defaults();
     public MultiKeyBindingsConfig multiKeyBindings = MultiKeyBindingsConfig.defaults();
 
@@ -98,6 +99,9 @@ public class VibeVisualsConfig {
         if (customHitSound == null) {
             customHitSound = CustomHitSoundConfig.defaults();
         }
+        if (shiftUp == null) {
+            shiftUp = ShiftUpConfig.defaults();
+        }
 
         if (hudAnimations == null) {
             hudAnimations = HudAnimationConfig.defaults();
@@ -135,6 +139,7 @@ public class VibeVisualsConfig {
         customCrosshair.validate();
         markers.validate();
         customHitSound.validate();
+        shiftUp.validate();
         hudAnimations.validate();
         visualEffects.validate();
         menu.validate();
@@ -837,6 +842,17 @@ public class VibeVisualsConfig {
             }
             volume = clamp(volume, 0.0f, 2.0f);
             cooldownTicks = clamp(cooldownTicks, 0.0f, 20.0f);
+        }
+    }
+
+    public static class ShiftUpConfig {
+        public boolean enabled = false;
+
+        public static ShiftUpConfig defaults() {
+            return new ShiftUpConfig();
+        }
+
+        public void validate() {
         }
     }
 
