@@ -19,8 +19,12 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
+import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
+import ru.suppelemen.vibevisuals.feature.screen.MarkersScreen;
+import ru.suppelemen.vibevisuals.feature.sound.CustomHitSoundPlayer;
 import ru.suppelemen.vibevisuals.feature.visual.ProjectilePrediction;
+import ru.suppelemen.vibevisuals.feature.visual.TargetEsp;
 import ru.suppelemen.vibevisuals.feature.visual.VisualEffects;
 
 public class VibeVisualsClient implements ClientModInitializer {
@@ -28,15 +32,18 @@ public class VibeVisualsClient implements ClientModInitializer {
     private static final KeyBinding.Category CONTROLS_CATEGORY = KeyBinding.Category.create(Identifier.of(MOD_ID, "controls"));
     private static KeyBinding reloadConfigKey;
     private static KeyBinding fullBrightKey;
+    private static KeyBinding markersMenuKey;
     private static boolean fullBrightEnabled;
     private static double previousGamma = 0.5D;
 
     @Override
     public void onInitializeClient() {
         VibeVisualsConfigManager.load();
+        CustomHitSoundPlayer.init();
         HudManager.init();
         registerConfigReloadKey();
         registerFullBrightKey();
+        registerMarkersMenuKey();
         registerPvpCombatHooks();
         registerVisualEffectsTick();
 
@@ -95,6 +102,21 @@ public class VibeVisualsClient implements ClientModInitializer {
         });
     }
 
+    private static void registerMarkersMenuKey() {
+        markersMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.vibevisuals.markers_menu",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_N,
+                CONTROLS_CATEGORY
+        ));
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (markersMenuKey.wasPressed()) {
+                client.setScreen(new MarkersScreen());
+            }
+        });
+    }
+
     private static void toggleFullBright(MinecraftClient client) {
         fullBrightEnabled = !fullBrightEnabled;
 
@@ -114,6 +136,9 @@ public class VibeVisualsClient implements ClientModInitializer {
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (world.isClient() && entity instanceof PlayerEntity target && player != target) {
                 PvpCombatTracker.startCombat(target);
+                if (isCriticalHit(player)) {
+                    CustomHitSoundPlayer.playCrit();
+                }
             }
 
             return ActionResult.PASS;
@@ -128,7 +153,14 @@ public class VibeVisualsClient implements ClientModInitializer {
     private static void registerVisualEffectsTick() {
         ClientTickEvents.END_CLIENT_TICK.register(VisualEffects::tick);
         ClientTickEvents.END_CLIENT_TICK.register(ProjectilePrediction::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(TargetEsp::tick);
         WorldRenderEvents.AFTER_ENTITIES.register(ProjectilePrediction::render);
+        WorldRenderEvents.AFTER_ENTITIES.register(TargetEsp::render);
+        WorldRenderEvents.AFTER_ENTITIES.register(MarkerManager::render);
+    }
+
+    private static boolean isCriticalHit(PlayerEntity player) {
+        return player.fallDistance > 0.0f && !player.isOnGround();
     }
 
     public static KeyBinding getReloadConfigKey() {
@@ -137,5 +169,9 @@ public class VibeVisualsClient implements ClientModInitializer {
 
     public static KeyBinding getFullBrightKey() {
         return fullBrightKey;
+    }
+
+    public static KeyBinding getMarkersMenuKey() {
+        return markersMenuKey;
     }
 }

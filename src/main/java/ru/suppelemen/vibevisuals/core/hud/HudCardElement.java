@@ -18,9 +18,18 @@ public abstract class HudCardElement extends HudElement {
 
     @Override
     public final void render(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode) {
+        renderInternal(context, client, tickDelta, editorMode, false);
+    }
+
+    @Override
+    public final void renderForced(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode) {
+        renderInternal(context, client, tickDelta, editorMode, true);
+    }
+
+    private void renderInternal(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode, boolean forceVisible) {
         syncFromConfig();
 
-        if (!enabled || (!editorMode && !shouldRenderCard(client))) {
+        if ((!enabled || (!editorMode && !shouldRenderCard(client))) && !forceVisible) {
             return;
         }
 

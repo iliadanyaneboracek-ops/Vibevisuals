@@ -3,6 +3,8 @@ package ru.suppelemen.vibevisuals.core.hud;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 
+import java.lang.reflect.Field;
+
 public abstract class HudElement {
     protected final String id;
     protected final String displayName;
@@ -23,6 +25,10 @@ public abstract class HudElement {
     }
 
     public abstract void render(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode);
+
+    public void renderForced(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode) {
+        render(context, client, tickDelta, editorMode);
+    }
 
     public boolean isVisibleForInteraction(MinecraftClient client, boolean editorMode) {
         return enabled;
@@ -57,11 +63,11 @@ public abstract class HudElement {
     }
 
     public int getWidth() {
-        return width;
+        return Math.round(width * getSizeMultiplier());
     }
 
     public int getHeight() {
-        return height;
+        return Math.round(height * getSizeMultiplier());
     }
 
     public void setPosition(int x, int y) {
@@ -70,6 +76,19 @@ public abstract class HudElement {
     }
 
     public boolean contains(double mouseX, double mouseY) {
-        return mouseX >= x && mouseY >= y && mouseX <= x + width && mouseY <= y + height;
+        return mouseX >= x && mouseY >= y && mouseX <= x + getWidth() && mouseY <= y + getHeight();
+    }
+
+    public float getSizeMultiplier() {
+        Object config = HudManager.getElementConfig(this);
+        if (config == null) {
+            return 1.0f;
+        }
+        try {
+            Field field = config.getClass().getField("size");
+            return Math.max(0.25f, Math.min(4.0f, field.getFloat(config)));
+        } catch (NoSuchFieldException | IllegalAccessException exception) {
+            return 1.0f;
+        }
     }
 }

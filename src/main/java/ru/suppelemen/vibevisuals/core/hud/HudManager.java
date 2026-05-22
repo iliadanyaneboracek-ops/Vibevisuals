@@ -60,10 +60,6 @@ public final class HudManager {
         context.getMatrices().scale(hudScale, hudScale);
         try {
             for (HudElement element : ELEMENTS) {
-                if (!element.isEnabled()) {
-                    continue;
-                }
-
                 renderElement(context, client, tickDelta, editorMode, element);
             }
         } finally {
@@ -73,14 +69,20 @@ public final class HudManager {
 
     private static void renderElement(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode, HudElement element) {
         if (editorMode || !VibeVisualsConfigManager.get().hudAnimations.enabled) {
-            element.render(context, client, tickDelta, editorMode);
+            renderSizedElement(context, client, tickDelta, editorMode, element);
             APPEAR_PROGRESS.put(element.getId(), 1.0f);
             return;
         }
 
+        var animations = VibeVisualsConfigManager.get().hudAnimations;
         float target = element.isVisibleForInteraction(client, false) ? 1.0f : 0.0f;
         float current = APPEAR_PROGRESS.getOrDefault(element.getId(), target);
-        float speed = VibeVisualsConfigManager.get().hudAnimations.speed;
+        if (target > current && !animations.appearEnabled) {
+            current = target;
+        } else if (target < current && !animations.disappearEnabled) {
+            current = target;
+        }
+        float speed = target >= current ? animations.speed : animations.disappearSpeed;
         current += (target - current) * speed;
         if (target > 0.0f && current < 0.01f) {
             current = 0.01f;
@@ -91,16 +93,52 @@ public final class HudManager {
             return;
         }
 
-        float scale = VibeVisualsConfigManager.get().hudAnimations.startScale
-                + (1.0f - VibeVisualsConfigManager.get().hudAnimations.startScale) * current;
-        float slide = (1.0f - current) * VibeVisualsConfigManager.get().hudAnimations.slideDistance;
+        float scale = animations.startScale + (1.0f - animations.startScale) * current;
+        float slide = (1.0f - current) * animations.slideDistance;
         int originX = element.getX() + element.getWidth() / 2;
         int originY = element.getY() + element.getHeight() / 2;
         context.getMatrices().pushMatrix();
         context.getMatrices().translate(originX, originY + slide);
         context.getMatrices().scale(scale, scale);
         context.getMatrices().translate(-originX, -originY);
-        element.render(context, client, tickDelta, editorMode);
+        if (target <= 0.0f && current > 0.01f) {
+            renderForcedSizedElement(context, client, tickDelta, editorMode, element);
+        } else {
+            renderSizedElement(context, client, tickDelta, editorMode, element);
+        }
+        context.getMatrices().popMatrix();
+    }
+
+    private static void renderSizedElement(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode, HudElement element) {
+        renderSizedElement(context, client, tickDelta, editorMode, element, false);
+    }
+
+    private static void renderForcedSizedElement(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode, HudElement element) {
+        renderSizedElement(context, client, tickDelta, editorMode, element, true);
+    }
+
+    private static void renderSizedElement(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode, HudElement element, boolean forceVisible) {
+        float size = element.getSizeMultiplier();
+        if (Math.abs(size - 1.0f) < 0.001f) {
+            if (forceVisible) {
+                element.renderForced(context, client, tickDelta, editorMode);
+            } else {
+                element.render(context, client, tickDelta, editorMode);
+            }
+            return;
+        }
+
+        int x = element.getX();
+        int y = element.getY();
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale(size, size);
+        context.getMatrices().translate(-x, -y);
+        if (forceVisible) {
+            element.renderForced(context, client, tickDelta, editorMode);
+        } else {
+            element.render(context, client, tickDelta, editorMode);
+        }
         context.getMatrices().popMatrix();
     }
 

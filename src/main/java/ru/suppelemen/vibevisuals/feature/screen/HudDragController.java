@@ -10,6 +10,7 @@ import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 
 public class HudDragController {
     private static final long PULSE_DURATION_MS = 500L;
+    private static final float DRAG_SCALE = 1.06f;
 
     private final boolean editorMode;
     private HudElement selected;
@@ -42,7 +43,11 @@ public class HudDragController {
         HudElement hovered = findElementAt(logicalMouseX, logicalMouseY, editorMode);
         HudElement outlined = dragged != null ? dragged : hovered != null ? hovered : selected;
         if (outlined != null) {
-            drawShaderOutline(context, outlined, shouldPulse() ? 5 : 3);
+            if (dragged != null) {
+                drawDragBodyHighlight(context, dragged);
+            } else {
+                drawShaderOutline(context, outlined, shouldPulse() ? 5 : 3);
+            }
         }
     }
 
@@ -129,6 +134,18 @@ public class HudDragController {
         int height = Math.round(element.getHeight() * scale) + scaledDistance * 2;
         float radius = Math.min(14.0f, Math.max(6.0f, Math.min(width, height) / 5.0f));
         HudCardRenderer.drawShaderOutline(context, x, y, width, height, radius, Math.max(1.0f, 1.4f * scale), 0.92f);
+    }
+
+    private static void drawDragBodyHighlight(DrawContext context, HudElement element) {
+        float scale = HudManager.getHudScale();
+        int x = Math.round(element.getX() * scale);
+        int y = Math.round(element.getY() * scale);
+        int width = Math.round(element.getWidth() * scale);
+        int height = Math.round(element.getHeight() * scale);
+        int growX = Math.max(1, Math.round(width * (DRAG_SCALE - 1.0f) * 0.5f));
+        int growY = Math.max(1, Math.round(height * (DRAG_SCALE - 1.0f) * 0.5f));
+        HudCardRenderer.drawOverlayCard(context, x - growX, y - growY, width + growX * 2, height + growY * 2, Math.min(16.0f, Math.max(6.0f, height / 5.0f)), 0xFFFFFFFF, 0.10f);
+        HudCardRenderer.drawShaderOutline(context, x - growX, y - growY, width + growX * 2, height + growY * 2, Math.min(16.0f, Math.max(6.0f, height / 5.0f)), Math.max(1.0f, 1.2f * scale), 0.80f);
     }
 
     private static double toLogical(double coordinate) {

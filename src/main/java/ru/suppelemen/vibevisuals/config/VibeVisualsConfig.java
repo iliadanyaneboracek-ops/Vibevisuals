@@ -10,6 +10,7 @@ public class VibeVisualsConfig {
     public boolean hudEnabled = true;
     public float hudScale = 1.0f;
     public float fullBrightStrength = 1.0f;
+    public MenuConfig menu = MenuConfig.defaults();
     public HudAnimationConfig hudAnimations = HudAnimationConfig.defaults();
 
     public CardConfig potionsCard = CardConfig.potionsDefaults();
@@ -22,6 +23,12 @@ public class VibeVisualsConfig {
     public HotbarConfig hotbar = HotbarConfig.defaults();
     public FireOverlayConfig fireOverlay = FireOverlayConfig.defaults();
     public ProjectilePredictionConfig projectilePrediction = ProjectilePredictionConfig.defaults();
+    public TargetEspConfig targetEsp = TargetEspConfig.defaults();
+    public SaturationDisplayConfig saturationDisplay = SaturationDisplayConfig.defaults();
+    public CustomHandConfig customHand = CustomHandConfig.defaults();
+    public CustomCrosshairConfig customCrosshair = CustomCrosshairConfig.defaults();
+    public MarkersConfig markers = MarkersConfig.defaults();
+    public CustomHitSoundConfig customHitSound = CustomHitSoundConfig.defaults();
     public VisualEffectsConfig visualEffects = VisualEffectsConfig.defaults();
 
     public void validate() {
@@ -65,12 +72,35 @@ public class VibeVisualsConfig {
             projectilePrediction = ProjectilePredictionConfig.defaults();
         }
 
+        if (targetEsp == null) {
+            targetEsp = TargetEspConfig.defaults();
+        }
+        if (saturationDisplay == null) {
+            saturationDisplay = SaturationDisplayConfig.defaults();
+        }
+        if (customHand == null) {
+            customHand = CustomHandConfig.defaults();
+        }
+        if (customCrosshair == null) {
+            customCrosshair = CustomCrosshairConfig.defaults();
+        }
+        if (markers == null) {
+            markers = MarkersConfig.defaults();
+        }
+        if (customHitSound == null) {
+            customHitSound = CustomHitSoundConfig.defaults();
+        }
+
         if (hudAnimations == null) {
             hudAnimations = HudAnimationConfig.defaults();
         }
 
         if (visualEffects == null) {
             visualEffects = VisualEffectsConfig.defaults();
+        }
+
+        if (menu == null) {
+            menu = MenuConfig.defaults();
         }
 
         if (configVersion < CURRENT_CONFIG_VERSION && potionsCard.maxEffects == LEGACY_DEFAULT_MAX_EFFECTS) {
@@ -87,8 +117,15 @@ public class VibeVisualsConfig {
         hotbar.validate();
         fireOverlay.validate();
         projectilePrediction.validate();
+        targetEsp.validate();
+        saturationDisplay.validate();
+        customHand.validate();
+        customCrosshair.validate();
+        markers.validate();
+        customHitSound.validate();
         hudAnimations.validate();
         visualEffects.validate();
+        menu.validate();
         hudScale = clamp(hudScale, 0.25f, 3.0f);
         fullBrightStrength = clamp(fullBrightStrength, 0.0f, 1.0f);
         configVersion = CURRENT_CONFIG_VERSION;
@@ -107,6 +144,7 @@ public class VibeVisualsConfig {
         public int y = 11;
         public int width = 110;
         public int height = 20;
+        public float size = 1.0f;
 
         public float radius = 8.0f;
         public float opacity = 0.70f;
@@ -157,6 +195,7 @@ public class VibeVisualsConfig {
         public void validate() {
             width = Math.max(24, width);
             height = Math.max(16, height);
+            size = clamp(size, 0.25f, 4.0f);
             radius = clamp(radius, 0.0f, 24.0f);
             opacity = clamp(opacity, 0.0f, 1.0f);
             titleBarOpacity = clamp(titleBarOpacity, 0.0f, 1.0f);
@@ -193,6 +232,7 @@ public class VibeVisualsConfig {
         public int y = 6;
         public int width = 150;
         public int height = 15;
+        public float size = 1.0f;
         public float radius = 8.0f;
         public float opacity = 0.80f;
 
@@ -215,6 +255,7 @@ public class VibeVisualsConfig {
         public void validate() {
             width = Math.max(48, Math.min(320, width));
             height = Math.max(10, Math.min(64, height));
+            size = clamp(size, 0.25f, 4.0f);
             x = Math.max(-1, Math.min(4096, x));
             y = Math.max(0, Math.min(512, y));
             radius = clamp(radius, 0.0f, 24.0f);
@@ -236,6 +277,7 @@ public class VibeVisualsConfig {
         public int y = 115;
         public int width = 75;
         public int height = 25;
+        public float size = 1.0f;
         public float radius = 7.0f;
         public float opacity = 0.70f;
         public int titleBarColor = 0xFF050710;
@@ -268,6 +310,7 @@ public class VibeVisualsConfig {
         public void validate() {
             width = Math.max(48, Math.min(240, width));
             height = Math.max(24, Math.min(160, height));
+            size = clamp(size, 0.25f, 4.0f);
             x = Math.max(-512, Math.min(4096, x));
             y = Math.max(-512, Math.min(4096, y));
             radius = clamp(radius, 0.0f, 24.0f);
@@ -298,6 +341,7 @@ public class VibeVisualsConfig {
         public int y = 16;
         public int width = 112;
         public int height = 44;
+        public float size = 1.0f;
         public float radius = 8.0f;
         public float opacity = 0.80f;
 
@@ -335,6 +379,7 @@ public class VibeVisualsConfig {
         public void validate() {
             width = Math.max(64, Math.min(280, width));
             height = Math.max(32, Math.min(180, height));
+            size = clamp(size, 0.25f, 4.0f);
             x = Math.max(-512, Math.min(4096, x));
             y = Math.max(-512, Math.min(4096, y));
             radius = clamp(radius, 0.0f, 24.0f);
@@ -369,6 +414,7 @@ public class VibeVisualsConfig {
         public int y = 340;
         public int width = 85;
         public int height = 18;
+        public float size = 1.0f;
         public float radius = 8.0f;
         public float opacity = 0.70f;
 
@@ -389,6 +435,7 @@ public class VibeVisualsConfig {
         public void validate() {
             width = Math.max(24, Math.min(220, width));
             height = Math.max(16, Math.min(96, height));
+            size = clamp(size, 0.25f, 4.0f);
             x = Math.max(-512, Math.min(4096, x));
             y = Math.max(-512, Math.min(4096, y));
             radius = clamp(radius, 0.0f, 24.0f);
@@ -409,6 +456,7 @@ public class VibeVisualsConfig {
         public int y = 276;
         public int width = 184;
         public int height = 70;
+        public float size = 1.0f;
         public float radius = 8.0f;
         public float opacity = 0.70f;
 
@@ -427,6 +475,7 @@ public class VibeVisualsConfig {
         public void validate() {
             width = Math.max(60, Math.min(360, width));
             height = Math.max(28, Math.min(220, height));
+            size = clamp(size, 0.25f, 4.0f);
             x = Math.max(-512, Math.min(4096, x));
             y = Math.max(-512, Math.min(4096, y));
             radius = clamp(radius, 0.0f, 24.0f);
@@ -472,7 +521,10 @@ public class VibeVisualsConfig {
 
     public static class HudAnimationConfig {
         public boolean enabled = true;
+        public boolean appearEnabled = true;
+        public boolean disappearEnabled = true;
         public float speed = 0.24f;
+        public float disappearSpeed = 0.28f;
         public float slideDistance = 6.0f;
         public float startScale = 0.92f;
 
@@ -482,8 +534,67 @@ public class VibeVisualsConfig {
 
         public void validate() {
             speed = clamp(speed, 0.02f, 1.0f);
+            disappearSpeed = clamp(disappearSpeed, 0.02f, 1.0f);
             slideDistance = clamp(slideDistance, 0.0f, 32.0f);
             startScale = clamp(startScale, 0.50f, 1.0f);
+        }
+    }
+
+    public static class MenuConfig {
+        public boolean enabled = true;
+
+        public int width = 250;
+        public int height = 166;
+        public int sideWidth = 142;
+        public int xOffset = 0;
+        public int yOffset = 0;
+        public int sideXOffset = 0;
+        public int sideYOffset = 0;
+        public float radius = 10.0f;
+        public float opacity = 0.82f;
+        public float headerOpacity = 0.34f;
+        public float cardOpacity = 0.28f;
+        public float activeOpacity = 0.54f;
+
+        public int backgroundColor = 0xFF050710;
+        public int cardColor = 0xFF090B12;
+        public int activeColor = 0xFF201A42;
+        public int accentColor = 0xFF7C5CFF;
+        public int outlineColor = 0xFFFFFFFF;
+        public int titleColor = 0xFFEFEFF6;
+        public int textColor = 0xFFD7DAE8;
+        public int mutedTextColor = 0xFF9DA2B3;
+
+        public int tabHeight = 13;
+        public int featureHeight = 16;
+        public int featureGap = 6;
+        public int rowHeight = 14;
+        public float settingTextScale = 0.82f;
+        public int colorPickerSize = 76;
+
+        public static MenuConfig defaults() {
+            return new MenuConfig();
+        }
+
+        public void validate() {
+            width = Math.max(190, Math.min(420, width));
+            height = Math.max(120, Math.min(320, height));
+            sideWidth = Math.max(120, Math.min(260, sideWidth));
+            xOffset = Math.max(-512, Math.min(512, xOffset));
+            yOffset = Math.max(-256, Math.min(256, yOffset));
+            sideXOffset = Math.max(-512, Math.min(512, sideXOffset));
+            sideYOffset = Math.max(-256, Math.min(256, sideYOffset));
+            radius = clamp(radius, 0.0f, 24.0f);
+            opacity = clamp(opacity, 0.0f, 1.0f);
+            headerOpacity = clamp(headerOpacity, 0.0f, 1.0f);
+            cardOpacity = clamp(cardOpacity, 0.0f, 1.0f);
+            activeOpacity = clamp(activeOpacity, 0.0f, 1.0f);
+            tabHeight = Math.max(10, Math.min(26, tabHeight));
+            featureHeight = Math.max(12, Math.min(32, featureHeight));
+            featureGap = Math.max(2, Math.min(18, featureGap));
+            rowHeight = Math.max(12, Math.min(28, rowHeight));
+            settingTextScale = clamp(settingTextScale, 0.50f, 1.0f);
+            colorPickerSize = Math.max(48, Math.min(128, colorPickerSize));
         }
     }
 
@@ -554,6 +665,165 @@ public class VibeVisualsConfig {
             splashPotionRadius = clamp(splashPotionRadius, 0.0f, 16.0f);
             lingeringPotionRadius = clamp(lingeringPotionRadius, 0.0f, 16.0f);
             multishotAngle = clamp(multishotAngle, 0.0f, 35.0f);
+        }
+    }
+
+    public static class TargetEspConfig {
+        public boolean enabled = true;
+        public String mode = "COMBO";
+        public int color = 0xFF7C5CFF;
+        public int secondaryColor = 0xFFFFFFFF;
+        public float radius = 0.82f;
+        public float heightOffset = 0.05f;
+        public float lineWidth = 4.0f;
+        public float spinSpeed = 0.10f;
+        public float particleSize = 0.10f;
+        public int particles = 12;
+        public int segments = 48;
+        public int targetHoldTicks = 6;
+
+        public static TargetEspConfig defaults() {
+            return new TargetEspConfig();
+        }
+
+        public void validate() {
+            if (mode == null || mode.isBlank()) {
+                mode = "COMBO";
+            }
+            radius = clamp(radius, 0.20f, 4.0f);
+            heightOffset = clamp(heightOffset, -1.0f, 3.0f);
+            lineWidth = clamp(lineWidth, 1.0f, 12.0f);
+            spinSpeed = clamp(spinSpeed, 0.0f, 1.0f);
+            particleSize = clamp(particleSize, 0.02f, 0.50f);
+            particles = Math.max(3, Math.min(64, particles));
+            segments = Math.max(12, Math.min(128, segments));
+            targetHoldTicks = Math.max(0, Math.min(40, targetHoldTicks));
+        }
+    }
+
+    public static class SaturationDisplayConfig {
+        public boolean enabled = true;
+        public int color = 0xFFFFD866;
+        public int backgroundColor = 0x66000000;
+        public int xOffset = 0;
+        public int yOffset = -3;
+        public int segmentWidth = 7;
+        public int segmentHeight = 2;
+        public int segmentGap = 1;
+        public float opacity = 0.95f;
+        public boolean showExhaustion = true;
+        public int exhaustionColor = 0xFFFF8A3D;
+
+        public static SaturationDisplayConfig defaults() {
+            return new SaturationDisplayConfig();
+        }
+
+        public void validate() {
+            xOffset = Math.max(-96, Math.min(96, xOffset));
+            yOffset = Math.max(-32, Math.min(32, yOffset));
+            segmentWidth = Math.max(2, Math.min(16, segmentWidth));
+            segmentHeight = Math.max(1, Math.min(8, segmentHeight));
+            segmentGap = Math.max(0, Math.min(8, segmentGap));
+            opacity = clamp(opacity, 0.0f, 1.0f);
+        }
+    }
+
+    public static class CustomHandConfig {
+        public boolean enabled = false;
+        public String mode = "HORIZONTAL";
+        public float x = 0.0f;
+        public float y = 0.0f;
+        public float z = 0.0f;
+        public float pitch = 0.0f;
+        public float yaw = 0.0f;
+        public float roll = 0.0f;
+        public float scale = 1.0f;
+        public float swingAmount = 0.45f;
+
+        public static CustomHandConfig defaults() {
+            return new CustomHandConfig();
+        }
+
+        public void validate() {
+            if (mode == null || mode.isBlank()) {
+                mode = "HORIZONTAL";
+            }
+            x = clamp(x, -2.0f, 2.0f);
+            y = clamp(y, -2.0f, 2.0f);
+            z = clamp(z, -2.0f, 2.0f);
+            pitch = clamp(pitch, -180.0f, 180.0f);
+            yaw = clamp(yaw, -180.0f, 180.0f);
+            roll = clamp(roll, -180.0f, 180.0f);
+            scale = clamp(scale, 0.20f, 3.0f);
+            swingAmount = clamp(swingAmount, 0.0f, 2.0f);
+        }
+    }
+
+    public static class CustomCrosshairConfig {
+        public boolean enabled = false;
+        public boolean hideVanilla = true;
+        public int color = 0xFFFFFFFF;
+        public int gap = 4;
+        public int length = 7;
+        public int thickness = 1;
+        public int width = 1;
+        public float angle = 0.0f;
+        public int xOffset = 0;
+        public int yOffset = 0;
+        public boolean dot = true;
+        public int dotSize = 2;
+
+        public static CustomCrosshairConfig defaults() {
+            return new CustomCrosshairConfig();
+        }
+
+        public void validate() {
+            gap = Math.max(0, Math.min(64, gap));
+            length = Math.max(1, Math.min(96, length));
+            thickness = Math.max(1, Math.min(16, thickness));
+            width = Math.max(1, Math.min(16, width));
+            angle = clamp(angle, -180.0f, 180.0f);
+            xOffset = Math.max(-512, Math.min(512, xOffset));
+            yOffset = Math.max(-512, Math.min(512, yOffset));
+            dotSize = Math.max(1, Math.min(16, dotSize));
+        }
+    }
+
+    public static class MarkersConfig {
+        public boolean enabled = true;
+        public int color = 0xFF7C5CFF;
+        public int maxMarkers = 32;
+        public float lineWidth = 3.0f;
+        public float radius = 0.35f;
+        public boolean showDistance = true;
+
+        public static MarkersConfig defaults() {
+            return new MarkersConfig();
+        }
+
+        public void validate() {
+            maxMarkers = Math.max(1, Math.min(128, maxMarkers));
+            lineWidth = clamp(lineWidth, 1.0f, 10.0f);
+            radius = clamp(radius, 0.05f, 2.0f);
+        }
+    }
+
+    public static class CustomHitSoundConfig {
+        public boolean enabled = false;
+        public String soundFile = "crit.wav";
+        public float volume = 0.85f;
+        public float cooldownTicks = 2.0f;
+
+        public static CustomHitSoundConfig defaults() {
+            return new CustomHitSoundConfig();
+        }
+
+        public void validate() {
+            if (soundFile == null || soundFile.isBlank()) {
+                soundFile = "crit.wav";
+            }
+            volume = clamp(volume, 0.0f, 2.0f);
+            cooldownTicks = clamp(cooldownTicks, 0.0f, 20.0f);
         }
     }
 
