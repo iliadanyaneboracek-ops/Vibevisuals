@@ -64,7 +64,7 @@ public final class VibeVisualsConfigManager {
                 if (currentValue != null && element.isJsonObject() && isConfigSection(field.getType())) {
                     applyJsonObject(currentValue, element.getAsJsonObject(), path + "." + field.getName());
                 } else {
-                    field.set(target, GSON.fromJson(element, field.getType()));
+                    field.set(target, GSON.fromJson(element, field.getGenericType()));
                 }
             } catch (IllegalAccessException | RuntimeException exception) {
                 System.err.println("[vibevisuals] Invalid config value ignored: " + path + "." + field.getName());
@@ -92,5 +92,9 @@ public final class VibeVisualsConfigManager {
 
     public static VibeVisualsConfig get() {
         return config;
+    }
+
+    public static Path getConfigPath() {
+        return CONFIG_PATH;
     }
 }

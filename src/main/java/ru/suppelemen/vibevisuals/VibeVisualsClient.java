@@ -19,6 +19,8 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
+import ru.suppelemen.vibevisuals.feature.keybind.FullBrightController;
+import ru.suppelemen.vibevisuals.feature.keybind.MultiKeyBindingManager;
 import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
 import ru.suppelemen.vibevisuals.feature.screen.MarkersScreen;
@@ -33,8 +35,6 @@ public class VibeVisualsClient implements ClientModInitializer {
     private static KeyBinding reloadConfigKey;
     private static KeyBinding fullBrightKey;
     private static KeyBinding markersMenuKey;
-    private static boolean fullBrightEnabled;
-    private static double previousGamma = 0.5D;
 
     @Override
     public void onInitializeClient() {
@@ -46,6 +46,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         registerMarkersMenuKey();
         registerPvpCombatHooks();
         registerVisualEffectsTick();
+        registerMultiKeyBindings();
 
         HudElementRegistry.addLast(
                 Identifier.of(MOD_ID, "main_hud"),
@@ -97,7 +98,7 @@ public class VibeVisualsClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (fullBrightKey.wasPressed()) {
-                toggleFullBright(client);
+                FullBrightController.toggle(client);
             }
         });
     }
@@ -117,19 +118,8 @@ public class VibeVisualsClient implements ClientModInitializer {
         });
     }
 
-    private static void toggleFullBright(MinecraftClient client) {
-        fullBrightEnabled = !fullBrightEnabled;
-
-        if (fullBrightEnabled) {
-            previousGamma = client.options.getGamma().getValue();
-            client.options.getGamma().setValue(previousGamma + (1.0D - previousGamma) * VibeVisualsConfigManager.get().fullBrightStrength);
-        } else {
-            client.options.getGamma().setValue(previousGamma);
-        }
-
-        if (client.player != null) {
-            client.player.sendMessage(Text.literal("FullBright " + (fullBrightEnabled ? "enabled" : "disabled")), true);
-        }
+    private static void registerMultiKeyBindings() {
+        ClientTickEvents.END_CLIENT_TICK.register(MultiKeyBindingManager::tick);
     }
 
     private static void registerPvpCombatHooks() {
