@@ -24,6 +24,10 @@ public abstract class HudElement {
 
     public abstract void render(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode);
 
+    public boolean isVisibleForInteraction(MinecraftClient client, boolean editorMode) {
+        return enabled;
+    }
+
     protected void drawEditorOutline(DrawContext context) {
         // Selection/hover outlines are drawn by HudEditorScreen.
     }

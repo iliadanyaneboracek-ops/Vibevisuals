@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import ru.suppelemen.vibevisuals.feature.screen.HudEditorScreen;
+import ru.suppelemen.vibevisuals.feature.screen.VibeVisualsMenuScreen;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +23,7 @@ public abstract class GameMenuScreenMixin extends Screen {
     }
 
     @Inject(method = "init", at = @At("TAIL"))
-    private void vibevisuals$replaceReportBugsButton(CallbackInfo ci) {
+    private void vibevisuals$replaceFeedbackButton(CallbackInfo ci) {
         List<ClickableWidget> widgets = new ArrayList<>();
         for (var child : children()) {
             if (child instanceof ClickableWidget widget) {
@@ -33,13 +33,13 @@ public abstract class GameMenuScreenMixin extends Screen {
 
         for (ClickableWidget widget : widgets) {
             String message = widget.getMessage().getString().toLowerCase(Locale.ROOT);
-            if (message.contains("report") || message.contains("bug") || message.contains("ошиб")) {
+            if (message.contains("feedback") || message.contains("report") || message.contains("bug")) {
                 int x = widget.getX();
                 int y = widget.getY();
                 int width = widget.getWidth();
                 int height = widget.getHeight();
                 remove(widget);
-                addDrawableChild(ButtonWidget.builder(Text.literal("HUD"), button -> MinecraftClient.getInstance().setScreen(new HudEditorScreen()))
+                addDrawableChild(ButtonWidget.builder(Text.literal("VibeVisuals"), button -> MinecraftClient.getInstance().setScreen(new VibeVisualsMenuScreen()))
                         .dimensions(x, y, width, height)
                         .build());
                 return;

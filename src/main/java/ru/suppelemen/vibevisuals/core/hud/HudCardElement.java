@@ -37,6 +37,17 @@ public abstract class HudCardElement extends HudElement {
         }
     }
 
+    @Override
+    public boolean isVisibleForInteraction(MinecraftClient client, boolean editorMode) {
+        syncFromConfig();
+        if (!enabled || (!editorMode && !shouldRenderCard(client))) {
+            return false;
+        }
+
+        updateLayout(client);
+        return true;
+    }
+
     protected abstract void renderContent(
             DrawContext context,
             MinecraftClient client,

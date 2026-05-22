@@ -82,6 +82,12 @@ public class HotKeysHudElement extends HudElement {
         }
     }
 
+    @Override
+    public boolean isVisibleForInteraction(MinecraftClient client, boolean editorMode) {
+        syncFromConfig();
+        return enabled;
+    }
+
     private void syncFromConfig() {
         enabled = config.enabled;
         x = config.x;

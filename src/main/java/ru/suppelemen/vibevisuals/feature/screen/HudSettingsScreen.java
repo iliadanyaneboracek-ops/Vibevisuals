@@ -4,6 +4,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
@@ -20,6 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class HudSettingsScreen extends Screen {
+    private static final float MIN_HUD_SCALE = 0.25f;
+    private static final float MAX_HUD_SCALE = 3.0f;
     private static final int PANEL_COLOR = 0xFF11131C;
     private static final int ROW_COLOR = 0xFF090B12;
     private static final float PANEL_OPACITY = 0.80f;
@@ -53,13 +56,19 @@ public class HudSettingsScreen extends Screen {
             return;
         }
 
+        HudScaleSlider scaleSlider = new HudScaleSlider(width / 2 - 76, 48, 152, 18);
+        scaleSlider.setTooltip(Tooltip.of(Text.translatable("screen.vibevisuals.setting.tooltip",
+                Text.translatable("screen.vibevisuals.setting.hudScale"),
+                String.valueOf(new VibeVisualsConfig().hudScale))));
+        addDrawableChild(scaleSlider);
+
         int index = 0;
         for (Field field : config.getClass().getFields()) {
             if (Modifier.isStatic(field.getModifiers())) {
                 continue;
             }
 
-            TextFieldWidget input = new TextFieldWidget(textRenderer, width - 150, 40 + index * 24, 92, 18, Text.literal(field.getName()));
+            TextFieldWidget input = new TextFieldWidget(textRenderer, width - 150, 72 + index * 24, 92, 18, Text.literal(field.getName()));
             input.setMaxLength(48);
             input.setText(readField(config, field));
             input.setDrawsBackground(false);
@@ -68,7 +77,7 @@ public class HudSettingsScreen extends Screen {
             addDrawableChild(input);
 
             ButtonWidget help = ButtonWidget.builder(Text.literal("?"), button -> {
-            }).dimensions(width - 52, 40 + index * 24, 18, 18)
+            }).dimensions(width - 52, 72 + index * 24, 18, 18)
                     .tooltip(Tooltip.of(description(field.getName(), defaultValueFor(element, field))))
                     .build();
             addDrawableChild(help);
@@ -102,10 +111,13 @@ public class HudSettingsScreen extends Screen {
         context.drawCenteredTextWithShadow(textRenderer, Text.literal(element.getDisplayName()), width / 2, 17, 0xFFEFEFF6);
         context.drawCenteredTextWithShadow(textRenderer, Text.translatable("screen.vibevisuals.settings_hint"), width / 2, 30, 0xFFB7BBC9);
 
+        HudCardRenderer.drawOverlayCard(context, panelX + 8, 44, panelWidth - 16, 24, ROW_RADIUS, ROW_COLOR, ROW_OPACITY);
+        context.drawTextWithShadow(textRenderer, Text.translatable("screen.vibevisuals.setting.hudScale"), panelX + 17, 52, 0xFFEFEFF6);
+
         for (int i = 0; i < entries.size(); i++) {
             FieldEntry entry = entries.get(i);
-            int y = 50 + i * 24 - scroll;
-            boolean visible = y > 42 && y + 20 < footerTop;
+            int y = 82 + i * 24 - scroll;
+            boolean visible = y > 74 && y + 20 < footerTop;
             entry.input.setX(panelX + panelWidth - 128);
             entry.input.setY(y - 1);
             entry.help.setX(panelX + panelWidth - 27);
@@ -125,7 +137,7 @@ public class HudSettingsScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        int listHeight = Math.max(0, height - 90);
+        int listHeight = Math.max(0, height - 122);
         int maxScroll = Math.max(0, entries.size() * 24 - listHeight);
         scroll = Math.max(0, Math.min(maxScroll, scroll - (int) Math.round(verticalAmount * 18.0)));
         return true;
@@ -196,5 +208,36 @@ public class HudSettingsScreen extends Screen {
     }
 
     private record FieldEntry(Field field, TextFieldWidget input, ButtonWidget help) {
+    }
+
+    private static class HudScaleSlider extends SliderWidget {
+        HudScaleSlider(int x, int y, int width, int height) {
+            super(x, y, width, height, messageFor(VibeVisualsConfigManager.get().hudScale), normalize(VibeVisualsConfigManager.get().hudScale));
+        }
+
+        @Override
+        protected void updateMessage() {
+            setMessage(messageFor(valueToScale()));
+        }
+
+        @Override
+        protected void applyValue() {
+            VibeVisualsConfigManager.get().hudScale = valueToScale();
+            VibeVisualsConfigManager.get().validate();
+            VibeVisualsConfigManager.save();
+            HudManager.reload();
+        }
+
+        private float valueToScale() {
+            return MIN_HUD_SCALE + (float) value * (MAX_HUD_SCALE - MIN_HUD_SCALE);
+        }
+
+        private static double normalize(float scale) {
+            return (VibeVisualsConfig.clamp(scale, MIN_HUD_SCALE, MAX_HUD_SCALE) - MIN_HUD_SCALE) / (MAX_HUD_SCALE - MIN_HUD_SCALE);
+        }
+
+        private static Text messageFor(float scale) {
+            return Text.literal(String.format(java.util.Locale.ROOT, "%.2fx", scale));
+        }
     }
 }

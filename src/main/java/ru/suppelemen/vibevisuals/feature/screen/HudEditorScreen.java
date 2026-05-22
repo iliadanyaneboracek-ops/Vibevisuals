@@ -12,7 +12,7 @@ import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 
 public class HudEditorScreen extends Screen {
     private final HudVisualSettings headerSettings = new HudVisualSettings();
-    private final HudDragController dragController = new HudDragController();
+    private final HudDragController dragController = new HudDragController(true);
     private ButtonWidget configureButton;
 
     public HudEditorScreen() {

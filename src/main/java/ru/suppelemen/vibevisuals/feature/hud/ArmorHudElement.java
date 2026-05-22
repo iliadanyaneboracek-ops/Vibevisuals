@@ -16,6 +16,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ArmorHudElement extends HudElement {
+    private static final List<EquipmentSlot> ARMOR_SLOTS = List.of(
+            EquipmentSlot.HEAD,
+            EquipmentSlot.CHEST,
+            EquipmentSlot.LEGS,
+            EquipmentSlot.FEET
+    );
     private static final List<ItemStack> EDITOR_ARMOR = List.of(
             new ItemStack(Items.NETHERITE_HELMET),
             new ItemStack(Items.NETHERITE_CHESTPLATE),
@@ -68,6 +74,25 @@ public class ArmorHudElement extends HudElement {
         }
     }
 
+    @Override
+    public boolean isVisibleForInteraction(MinecraftClient client, boolean editorMode) {
+        syncFromConfig();
+        if (!enabled) {
+            return false;
+        }
+
+        List<ItemStack> armor = getVisibleArmor(client, editorMode);
+        if (armor.isEmpty()) {
+            return false;
+        }
+
+        int contentWidth = config.padding * 2
+                + armor.size() * config.iconSize
+                + Math.max(0, armor.size() - 1) * config.iconGap;
+        width = Math.max(config.width, contentWidth);
+        return true;
+    }
+
     private void syncFromConfig() {
         enabled = config.enabled;
         x = config.x;
@@ -87,7 +112,7 @@ public class ArmorHudElement extends HudElement {
         }
 
         List<ItemStack> armor = new ArrayList<>();
-        for (EquipmentSlot slot : List.of(EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET)) {
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
             ItemStack stack = client.player.getEquippedStack(slot);
             if (!stack.isEmpty()) {
                 armor.add(stack);

@@ -5,8 +5,13 @@
   "client": [
     "ChatScreenMixin",
     "ClientPlayNetworkHandlerMixin",
+    "FogRendererMixin",
     "GameMenuScreenMixin",
-    "InGameHudMixin"
+    "InGameHudMixin",
+    "InGameOverlayRendererMixin",
+    "ItemCooldownEntryAccessor",
+    "ItemCooldownManagerAccessor",
+    "SkyRenderingMixin"
   ],
   "injectors": {
     "defaultRequire": 1

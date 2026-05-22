@@ -4,6 +4,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -19,6 +20,8 @@ import org.lwjgl.glfw.GLFW;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
+import ru.suppelemen.vibevisuals.feature.visual.ProjectilePrediction;
+import ru.suppelemen.vibevisuals.feature.visual.VisualEffects;
 
 public class VibeVisualsClient implements ClientModInitializer {
     public static final String MOD_ID = "vibevisuals";
@@ -35,6 +38,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         registerConfigReloadKey();
         registerFullBrightKey();
         registerPvpCombatHooks();
+        registerVisualEffectsTick();
 
         HudElementRegistry.addLast(
                 Identifier.of(MOD_ID, "main_hud"),
@@ -96,7 +100,7 @@ public class VibeVisualsClient implements ClientModInitializer {
 
         if (fullBrightEnabled) {
             previousGamma = client.options.getGamma().getValue();
-            client.options.getGamma().setValue(1.0D);
+            client.options.getGamma().setValue(previousGamma + (1.0D - previousGamma) * VibeVisualsConfigManager.get().fullBrightStrength);
         } else {
             client.options.getGamma().setValue(previousGamma);
         }
@@ -119,6 +123,12 @@ public class VibeVisualsClient implements ClientModInitializer {
             PvpCombatTracker.clearIfExpired();
             PvpCombatTracker.tick(client);
         });
+    }
+
+    private static void registerVisualEffectsTick() {
+        ClientTickEvents.END_CLIENT_TICK.register(VisualEffects::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(ProjectilePrediction::tick);
+        WorldRenderEvents.AFTER_ENTITIES.register(ProjectilePrediction::render);
     }
 
     public static KeyBinding getReloadConfigKey() {

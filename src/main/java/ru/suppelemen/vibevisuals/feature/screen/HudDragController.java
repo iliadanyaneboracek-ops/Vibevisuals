@@ -2,6 +2,7 @@ package ru.suppelemen.vibevisuals.feature.screen;
 
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.MinecraftClient;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudElement;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
@@ -10,6 +11,7 @@ import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 public class HudDragController {
     private static final long PULSE_DURATION_MS = 500L;
 
+    private final boolean editorMode;
     private HudElement selected;
     private HudElement dragged;
     private int dragOffsetX;
@@ -17,12 +19,27 @@ public class HudDragController {
     private long dragPulseStartedAt;
     private long releasePulseStartedAt;
 
+    public HudDragController() {
+        this(false);
+    }
+
+    public HudDragController(boolean editorMode) {
+        this.editorMode = editorMode;
+    }
+
     public HudElement selected() {
         return selected;
     }
 
     public void renderOutline(DrawContext context, int mouseX, int mouseY) {
-        HudElement hovered = findElementAt(mouseX, mouseY);
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (selected != null && !selected.isVisibleForInteraction(client, editorMode)) {
+            selected = null;
+        }
+
+        double logicalMouseX = toLogical(mouseX);
+        double logicalMouseY = toLogical(mouseY);
+        HudElement hovered = findElementAt(logicalMouseX, logicalMouseY, editorMode);
         HudElement outlined = dragged != null ? dragged : hovered != null ? hovered : selected;
         if (outlined != null) {
             drawShaderOutline(context, outlined, shouldPulse() ? 5 : 3);
@@ -34,14 +51,16 @@ public class HudDragController {
             return false;
         }
 
-        selected = findElementAt(click.x(), click.y());
+        double logicalX = toLogical(click.x());
+        double logicalY = toLogical(click.y());
+        selected = findElementAt(logicalX, logicalY, editorMode);
         if (selected == null) {
             return false;
         }
 
         dragged = selected;
-        dragOffsetX = (int) Math.round(click.x()) - selected.getX();
-        dragOffsetY = (int) Math.round(click.y()) - selected.getY();
+        dragOffsetX = (int) Math.round(logicalX) - selected.getX();
+        dragOffsetY = (int) Math.round(logicalY) - selected.getY();
         dragPulseStartedAt = System.currentTimeMillis();
         return true;
     }
@@ -51,8 +70,11 @@ public class HudDragController {
             return false;
         }
 
-        int newX = clamp((int) Math.round(click.x()) - dragOffsetX, 0, Math.max(0, screenWidth - dragged.getWidth()));
-        int newY = clamp((int) Math.round(click.y()) - dragOffsetY, 0, Math.max(0, screenHeight - dragged.getHeight()));
+        float scale = HudManager.getHudScale();
+        int logicalScreenWidth = Math.max(1, Math.round(screenWidth / scale));
+        int logicalScreenHeight = Math.max(1, Math.round(screenHeight / scale));
+        int newX = clamp((int) Math.round(toLogical(click.x())) - dragOffsetX, 0, Math.max(0, logicalScreenWidth - dragged.getWidth()));
+        int newY = clamp((int) Math.round(toLogical(click.y())) - dragOffsetY, 0, Math.max(0, logicalScreenHeight - dragged.getHeight()));
         dragged.setPosition(newX, newY);
         HudManager.saveElementPosition(dragged, newX, newY);
         return true;
@@ -76,10 +98,11 @@ public class HudDragController {
         return now - dragPulseStartedAt < PULSE_DURATION_MS || now - releasePulseStartedAt < PULSE_DURATION_MS;
     }
 
-    private static HudElement findElementAt(double mouseX, double mouseY) {
+    private static HudElement findElementAt(double mouseX, double mouseY, boolean editorMode) {
+        MinecraftClient client = MinecraftClient.getInstance();
         for (int index = HudManager.getElements().size() - 1; index >= 0; index--) {
             HudElement element = HudManager.getElements().get(index);
-            if (element.isEnabled() && element.contains(mouseX, mouseY)) {
+            if (element.isVisibleForInteraction(client, editorMode) && element.contains(mouseX, mouseY)) {
                 return element;
             }
         }
@@ -98,12 +121,18 @@ public class HudDragController {
     }
 
     private static void drawShaderOutline(DrawContext context, HudElement element, int distance) {
-        int x = element.getX() - distance;
-        int y = element.getY() - distance;
-        int width = element.getWidth() + distance * 2;
-        int height = element.getHeight() + distance * 2;
+        float scale = HudManager.getHudScale();
+        int scaledDistance = Math.max(1, Math.round(distance * scale));
+        int x = Math.round(element.getX() * scale) - scaledDistance;
+        int y = Math.round(element.getY() * scale) - scaledDistance;
+        int width = Math.round(element.getWidth() * scale) + scaledDistance * 2;
+        int height = Math.round(element.getHeight() * scale) + scaledDistance * 2;
         float radius = Math.min(14.0f, Math.max(6.0f, Math.min(width, height) / 5.0f));
-        HudCardRenderer.drawShaderOutline(context, x, y, width, height, radius, 1.4f, 0.92f);
+        HudCardRenderer.drawShaderOutline(context, x, y, width, height, radius, Math.max(1.0f, 1.4f * scale), 0.92f);
+    }
+
+    private static double toLogical(double coordinate) {
+        return coordinate / HudManager.getHudScale();
     }
 
     private static int clamp(int value, int min, int max) {

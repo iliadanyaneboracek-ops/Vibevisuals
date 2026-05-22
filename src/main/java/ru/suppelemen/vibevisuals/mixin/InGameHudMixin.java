@@ -9,9 +9,21 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
+import ru.suppelemen.vibevisuals.feature.hud.CustomHotbarRenderer;
+import ru.suppelemen.vibevisuals.feature.hud.FireOverlayRenderer;
 
 @Mixin(InGameHud.class)
 public class InGameHudMixin {
+    @Inject(method = "renderHotbar", at = @At("HEAD"), cancellable = true)
+    private void vibevisuals$renderCustomHotbar(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+        VibeVisualsConfig config = VibeVisualsConfigManager.get();
+        FireOverlayRenderer.render(context);
+        if (config.hudEnabled && config.hotbar.enabled) {
+            CustomHotbarRenderer.render(context);
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "renderStatusEffectOverlay", at = @At("HEAD"), cancellable = true)
     private void vibevisuals$hideVanillaStatusEffects(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
         VibeVisualsConfig config = VibeVisualsConfigManager.get();

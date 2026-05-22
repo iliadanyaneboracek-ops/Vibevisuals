@@ -55,6 +55,12 @@ public class TopStatusHudElement extends HudElement {
         }
     }
 
+    @Override
+    public boolean isVisibleForInteraction(MinecraftClient client, boolean editorMode) {
+        syncFromConfig(client);
+        return enabled;
+    }
+
     private void syncFromConfig(MinecraftClient client) {
         enabled = config.enabled;
         width = config.width;

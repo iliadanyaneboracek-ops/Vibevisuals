@@ -90,6 +90,12 @@ public class PvpCombatHudElement extends HudElement {
         }
     }
 
+    @Override
+    public boolean isVisibleForInteraction(MinecraftClient client, boolean editorMode) {
+        syncFromConfig();
+        return enabled && (editorMode || PvpCombatTracker.isActive());
+    }
+
     private void syncFromConfig() {
         enabled = config.enabled;
         x = config.x;
