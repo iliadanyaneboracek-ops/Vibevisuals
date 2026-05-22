@@ -1,6 +1,13 @@
 package ru.suppelemen.vibevisuals.config;
 
+import org.lwjgl.glfw.GLFW;
+import ru.suppelemen.vibevisuals.feature.keybind.KeyStroke;
+import ru.suppelemen.vibevisuals.feature.keybind.ModAction;
+import ru.suppelemen.vibevisuals.feature.keybind.MultiKeyBinding;
 import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class VibeVisualsConfig {
     private static final int CURRENT_CONFIG_VERSION = 2;
@@ -23,6 +30,7 @@ public class VibeVisualsConfig {
     public FireOverlayConfig fireOverlay = FireOverlayConfig.defaults();
     public ProjectilePredictionConfig projectilePrediction = ProjectilePredictionConfig.defaults();
     public VisualEffectsConfig visualEffects = VisualEffectsConfig.defaults();
+    public MultiKeyBindingsConfig multiKeyBindings = MultiKeyBindingsConfig.defaults();
 
     public void validate() {
         if (potionsCard == null) {
@@ -73,6 +81,10 @@ public class VibeVisualsConfig {
             visualEffects = VisualEffectsConfig.defaults();
         }
 
+        if (multiKeyBindings == null) {
+            multiKeyBindings = MultiKeyBindingsConfig.defaults();
+        }
+
         if (configVersion < CURRENT_CONFIG_VERSION && potionsCard.maxEffects == LEGACY_DEFAULT_MAX_EFFECTS) {
             potionsCard.maxEffects = CardConfig.DEFAULT_MAX_EFFECTS;
         }
@@ -89,6 +101,7 @@ public class VibeVisualsConfig {
         projectilePrediction.validate();
         hudAnimations.validate();
         visualEffects.validate();
+        multiKeyBindings.validate();
         hudScale = clamp(hudScale, 0.25f, 3.0f);
         fullBrightStrength = clamp(fullBrightStrength, 0.0f, 1.0f);
         configVersion = CURRENT_CONFIG_VERSION;
@@ -586,6 +599,52 @@ public class VibeVisualsConfig {
             particleRadius = clamp(particleRadius, 0.0f, 256.0f);
             particleYOffset = clamp(particleYOffset, -4.0f, 4.0f);
             particleVelocity = clamp(particleVelocity, 0.0f, 0.5f);
+        }
+    }
+
+    public static class MultiKeyBindingsConfig {
+        public boolean enabled = true;
+        public List<MultiKeyBinding> bindings = new ArrayList<>();
+
+        public static MultiKeyBindingsConfig defaults() {
+            MultiKeyBindingsConfig config = new MultiKeyBindingsConfig();
+            config.bindings.add(buildMacroExample());
+            config.bindings.add(buildSequenceExample());
+            return config;
+        }
+
+        private static MultiKeyBinding buildMacroExample() {
+            MultiKeyBinding binding = new MultiKeyBinding(
+                    "macro_reload_and_fullbright",
+                    "Reload + FullBright",
+                    KeyStroke.keyWithModifiers(GLFW.GLFW_KEY_B, true, false, false),
+                    List.of(ModAction.RELOAD_CONFIG.id(), ModAction.TOGGLE_FULLBRIGHT.id())
+            );
+            binding.enabled = false;
+            return binding;
+        }
+
+        private static MultiKeyBinding buildSequenceExample() {
+            MultiKeyBinding binding = new MultiKeyBinding(
+                    "sequence_open_menu",
+                    "Open VibeVisuals Menu",
+                    KeyStroke.key(GLFW.GLFW_KEY_G),
+                    List.of(ModAction.OPEN_MENU.id())
+            );
+            binding.chord = KeyStroke.key(GLFW.GLFW_KEY_F);
+            binding.chordTimeoutMs = 1000;
+            binding.enabled = false;
+            return binding;
+        }
+
+        public void validate() {
+            if (bindings == null) {
+                bindings = new ArrayList<>();
+            }
+            bindings.removeIf(java.util.Objects::isNull);
+            for (MultiKeyBinding binding : bindings) {
+                binding.validate();
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Util;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
@@ -31,6 +32,9 @@ public class VibeVisualsMenuScreen extends Screen {
     private FeatureEntry selectedFeature;
     private FeatureEntry hoveredFeature;
     private int sideAnimation;
+    private final FooterButton multiBindingButton = new FooterButton("Multi-Binding", true);
+    private final FooterButton openConfigButton = new FooterButton("Open Config File", false);
+    private FooterButton hoveredFooterButton;
 
     public VibeVisualsMenuScreen() {
         super(Text.literal("VibeVisuals"));
@@ -45,6 +49,54 @@ public class VibeVisualsMenuScreen extends Screen {
         panelSettings.blur = false;
         rebuildFeatures();
         rebuildSettings();
+        layoutFooterButtons();
+    }
+
+    private void layoutFooterButtons() {
+        int buttonH = 20;
+        int gap = 6;
+        int totalW = Math.min(360, width - 40);
+        int buttonW = (totalW - gap) / 2;
+        int x = width / 2 - totalW / 2;
+        int y = height - buttonH - 8;
+
+        multiBindingButton.x = x;
+        multiBindingButton.y = y;
+        multiBindingButton.w = buttonW;
+        multiBindingButton.h = buttonH;
+
+        openConfigButton.x = x + buttonW + gap;
+        openConfigButton.y = y;
+        openConfigButton.w = buttonW;
+        openConfigButton.h = buttonH;
+    }
+
+    private void renderFooterButtons(DrawContext context, int mouseX, int mouseY) {
+        hoveredFooterButton = null;
+        renderFooterButton(context, mouseX, mouseY, multiBindingButton);
+        renderFooterButton(context, mouseX, mouseY, openConfigButton);
+    }
+
+    private void renderFooterButton(DrawContext context, int mouseX, int mouseY, FooterButton button) {
+        boolean hovered = mouseX >= button.x && mouseX <= button.x + button.w
+                && mouseY >= button.y && mouseY <= button.y + button.h;
+        if (hovered) {
+            hoveredFooterButton = button;
+            if (!button.hoveredLastFrame) {
+                playHoverSound();
+            }
+        }
+        button.hoveredLastFrame = hovered;
+        float targetHover = hovered ? 1.0f : 0.0f;
+        button.hoverProgress += (targetHover - button.hoverProgress) * 0.25f;
+
+        int bg = button.accent ? 0xFF7C5CFF : 0xFF090B12;
+        float baseOpacity = button.accent ? 0.62f : 0.50f;
+        float opacity = baseOpacity + button.hoverProgress * 0.18f;
+        HudCardRenderer.drawOverlayCard(context, button.x, button.y, button.w, button.h, 7.0f, bg, opacity);
+        context.drawCenteredTextWithShadow(textRenderer, Text.literal(button.label),
+                button.x + button.w / 2, button.y + (button.h - 8) / 2,
+                button.accent ? 0xFFFFFFFF : 0xFFEFEFF6);
     }
 
     private void rebuildFeatures() {
@@ -68,8 +120,10 @@ public class VibeVisualsMenuScreen extends Screen {
     }
 
     private void rebuildSettings() {
+        for (SettingEntry entry : settingEntries) {
+            remove(entry.input);
+        }
         settingEntries.clear();
-        clearChildren();
         if (selectedFeature == null || selectedFeature.config == null) {
             return;
         }
@@ -112,6 +166,7 @@ public class VibeVisualsMenuScreen extends Screen {
         renderCategories(context, mouseX, mouseY, mainX + 9, mainY + 28, mainW - 18);
         renderFeatures(context, mouseX, mouseY, mainX + 9, mainY + 47, mainW - 18);
         renderSettingsPanel(context);
+        renderFooterButtons(context, mouseX, mouseY);
         super.render(context, mouseX, mouseY, delta);
     }
 
@@ -210,6 +265,18 @@ public class VibeVisualsMenuScreen extends Screen {
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
         if (super.mouseClicked(click, doubled)) {
+            return true;
+        }
+
+        if (hoveredFooterButton != null) {
+            playHoverSound();
+            if (hoveredFooterButton == multiBindingButton) {
+                if (client != null) {
+                    client.setScreen(new MultiKeyBindingsScreen(this));
+                }
+            } else if (hoveredFooterButton == openConfigButton) {
+                Util.getOperatingSystem().open(VibeVisualsConfigManager.getConfigPath().toFile());
+            }
             return true;
         }
 
@@ -358,5 +425,21 @@ public class VibeVisualsMenuScreen extends Screen {
     }
 
     private record SettingEntry(Field field, TextFieldWidget input) {
+    }
+
+    private static class FooterButton {
+        final String label;
+        final boolean accent;
+        int x;
+        int y;
+        int w;
+        int h;
+        float hoverProgress;
+        boolean hoveredLastFrame;
+
+        FooterButton(String label, boolean accent) {
+            this.label = label;
+            this.accent = accent;
+        }
     }
 }
