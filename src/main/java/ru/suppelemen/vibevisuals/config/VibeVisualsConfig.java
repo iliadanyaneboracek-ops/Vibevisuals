@@ -37,6 +37,10 @@ public class VibeVisualsConfig {
     public MarkersConfig markers = MarkersConfig.defaults();
     public CustomHitSoundConfig customHitSound = CustomHitSoundConfig.defaults();
     public VisualEffectsConfig visualEffects = VisualEffectsConfig.defaults();
+    public AutoEatConfig autoEat = AutoEatConfig.defaults();
+    public AutoPotionConfig autoPotion = AutoPotionConfig.defaults();
+    public AutoRespawnConfig autoRespawn = AutoRespawnConfig.defaults();
+    public TapeMouseConfig tapeMouse = TapeMouseConfig.defaults();
     public MultiKeyBindingsConfig multiKeyBindings = MultiKeyBindingsConfig.defaults();
 
     public void validate() {
@@ -107,6 +111,22 @@ public class VibeVisualsConfig {
             visualEffects = VisualEffectsConfig.defaults();
         }
 
+        if (autoEat == null) {
+            autoEat = AutoEatConfig.defaults();
+        }
+
+        if (autoPotion == null) {
+            autoPotion = AutoPotionConfig.defaults();
+        }
+
+        if (autoRespawn == null) {
+            autoRespawn = AutoRespawnConfig.defaults();
+        }
+
+        if (tapeMouse == null) {
+            tapeMouse = TapeMouseConfig.defaults();
+        }
+
         if (menu == null) {
             menu = MenuConfig.defaults();
         }
@@ -137,6 +157,10 @@ public class VibeVisualsConfig {
         customHitSound.validate();
         hudAnimations.validate();
         visualEffects.validate();
+        autoEat.validate();
+        autoPotion.validate();
+        autoRespawn.validate();
+        tapeMouse.validate();
         menu.validate();
         multiKeyBindings.validate();
         hudScale = clamp(hudScale, 0.25f, 3.0f);
@@ -869,6 +893,64 @@ public class VibeVisualsConfig {
             particleRadius = clamp(particleRadius, 0.0f, 256.0f);
             particleYOffset = clamp(particleYOffset, -4.0f, 4.0f);
             particleVelocity = clamp(particleVelocity, 0.0f, 0.5f);
+        }
+    }
+
+    public static class AutoEatConfig {
+        public boolean enabled = false;
+        public int hungerPercent = 60;
+
+        public static AutoEatConfig defaults() {
+            return new AutoEatConfig();
+        }
+
+        public void validate() {
+            hungerPercent = Math.max(5, Math.min(95, hungerPercent));
+        }
+    }
+
+    public static class AutoPotionConfig {
+        public boolean enabled = false;
+        public boolean useSpeed = true;
+        public boolean useInvisibility = true;
+        public int refreshSeconds = 15;
+
+        public static AutoPotionConfig defaults() {
+            return new AutoPotionConfig();
+        }
+
+        public void validate() {
+            refreshSeconds = Math.max(0, Math.min(120, refreshSeconds));
+        }
+    }
+
+    public static class AutoRespawnConfig {
+        public boolean enabled = false;
+        public String command = "";
+        public int commandDelayTicks = 20;
+
+        public static AutoRespawnConfig defaults() {
+            return new AutoRespawnConfig();
+        }
+
+        public void validate() {
+            if (command == null) {
+                command = "";
+            }
+            commandDelayTicks = Math.max(0, Math.min(200, commandDelayTicks));
+        }
+    }
+
+    public static class TapeMouseConfig {
+        public boolean enabled = false;
+        public int clickDelayTicks = 4;
+
+        public static TapeMouseConfig defaults() {
+            return new TapeMouseConfig();
+        }
+
+        public void validate() {
+            clickDelayTicks = Math.max(1, Math.min(200, clickDelayTicks));
         }
     }
 

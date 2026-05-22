@@ -25,6 +25,10 @@ import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
 import ru.suppelemen.vibevisuals.feature.screen.MarkersScreen;
 import ru.suppelemen.vibevisuals.feature.sound.CustomHitSoundPlayer;
+import ru.suppelemen.vibevisuals.feature.utility.AutoEatController;
+import ru.suppelemen.vibevisuals.feature.utility.AutoPotionController;
+import ru.suppelemen.vibevisuals.feature.utility.AutoRespawnController;
+import ru.suppelemen.vibevisuals.feature.utility.TapeMouseController;
 import ru.suppelemen.vibevisuals.feature.visual.ProjectilePrediction;
 import ru.suppelemen.vibevisuals.feature.visual.TargetEsp;
 import ru.suppelemen.vibevisuals.feature.visual.VisualEffects;
@@ -47,15 +51,12 @@ public class VibeVisualsClient implements ClientModInitializer {
         registerPvpCombatHooks();
         registerVisualEffectsTick();
         registerMultiKeyBindings();
+        registerUtilityTick();
 
         HudElementRegistry.addLast(
                 Identifier.of(MOD_ID, "main_hud"),
                 (DrawContext context, RenderTickCounter tickCounter) -> {
                     MinecraftClient client = MinecraftClient.getInstance();
-
-                    if (client.getDebugHud().shouldShowDebugHud()) {
-                        return;
-                    }
 
                     if (client.currentScreen != null && !(client.currentScreen instanceof ChatScreen)) {
                         return;
@@ -120,6 +121,13 @@ public class VibeVisualsClient implements ClientModInitializer {
 
     private static void registerMultiKeyBindings() {
         ClientTickEvents.END_CLIENT_TICK.register(MultiKeyBindingManager::tick);
+    }
+
+    private static void registerUtilityTick() {
+        ClientTickEvents.END_CLIENT_TICK.register(AutoEatController::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(AutoPotionController::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(AutoRespawnController::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(TapeMouseController::tick);
     }
 
     private static void registerPvpCombatHooks() {

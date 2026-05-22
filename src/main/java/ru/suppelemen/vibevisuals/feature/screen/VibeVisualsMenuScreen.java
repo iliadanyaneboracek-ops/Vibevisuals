@@ -132,6 +132,10 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.UTILITIES, "Projectile Prediction", () -> config.projectilePrediction.enabled, value -> config.projectilePrediction.enabled = value, config.projectilePrediction));
         features.add(new FeatureEntry(Category.UTILITIES, "HUD Animations", () -> config.hudAnimations.enabled, value -> config.hudAnimations.enabled = value, config.hudAnimations));
         features.add(new FeatureEntry(Category.UTILITIES, "Markers", () -> config.markers.enabled, value -> config.markers.enabled = value, config.markers));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoEat", () -> config.autoEat.enabled, value -> config.autoEat.enabled = value, config.autoEat));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion", () -> config.autoPotion.enabled, value -> config.autoPotion.enabled = value, config.autoPotion));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn", () -> config.autoRespawn.enabled, value -> config.autoRespawn.enabled = value, config.autoRespawn));
+        features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse", () -> config.tapeMouse.enabled, value -> config.tapeMouse.enabled = value, config.tapeMouse));
         features.add(new FeatureEntry(Category.UTILITIES, "FullBright", () -> config.fullBrightStrength > 0.0f, value -> config.fullBrightStrength = value ? Math.max(0.6f, config.fullBrightStrength) : 0.0f, config));
         features.add(new FeatureEntry(Category.MENU, "Menu Settings", () -> config.menu.enabled, value -> config.menu.enabled = value, config.menu));
     }
