@@ -13,6 +13,7 @@
     "InGameOverlayRendererMixin",
     "ItemCooldownEntryAccessor",
     "ItemCooldownManagerAccessor",
+    "ItemPickupLoggerMixin",
     "SkyRenderingMixin"
   ],
   "injectors": {

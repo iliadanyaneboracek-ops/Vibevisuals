@@ -112,11 +112,13 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.HUD, "Inventory HUD", () -> config.inventoryHud.enabled, value -> config.inventoryHud.enabled = value, config.inventoryHud));
         features.add(new FeatureEntry(Category.HUD, "Armor HUD", () -> config.armorHud.enabled, value -> config.armorHud.enabled = value, config.armorHud));
         features.add(new FeatureEntry(Category.HUD, "Custom Hotbar", () -> config.hotbar.enabled, value -> config.hotbar.enabled = value, config.hotbar));
+        features.add(new FeatureEntry(Category.HUD, "Slot Timers", () -> config.slotTimers.enabled, value -> config.slotTimers.enabled = value, config.slotTimers));
         features.add(new FeatureEntry(Category.PVP, "PvP Combat", () -> config.pvpCard.enabled, value -> config.pvpCard.enabled = value, config.pvpCard));
         features.add(new FeatureEntry(Category.PVP, "Target ESP", () -> config.targetEsp.enabled, value -> config.targetEsp.enabled = value, config.targetEsp));
         features.add(new FeatureEntry(Category.PVP, "Saturation", () -> config.saturationDisplay.enabled, value -> config.saturationDisplay.enabled = value, config.saturationDisplay));
         features.add(new FeatureEntry(Category.PVP, "Crit Hit Sound", () -> config.customHitSound.enabled, value -> config.customHitSound.enabled = value, config.customHitSound));
         features.add(new FeatureEntry(Category.PVP, "Shift Up", () -> config.shiftUp.enabled, value -> config.shiftUp.enabled = value, config.shiftUp));
+        features.add(new FeatureEntry(Category.PVP, "Healing Helper", () -> config.healingHelper.enabled, value -> config.healingHelper.enabled = value, config.healingHelper));
         features.add(new FeatureEntry(Category.VISUALS, "Sky Color", () -> config.visualEffects.skyColorEnabled, value -> config.visualEffects.skyColorEnabled = value, config.visualEffects));
         features.add(new FeatureEntry(Category.VISUALS, "Fog Color", () -> config.visualEffects.fogColorEnabled, value -> config.visualEffects.fogColorEnabled = value, config.visualEffects));
         features.add(new FeatureEntry(Category.VISUALS, "Particles", () -> config.visualEffects.customParticlesEnabled, value -> config.visualEffects.customParticlesEnabled = value, config.visualEffects));
@@ -130,6 +132,7 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion", () -> config.autoPotion.enabled, value -> config.autoPotion.enabled = value, config.autoPotion));
         features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn", () -> config.autoRespawn.enabled, value -> config.autoRespawn.enabled = value, config.autoRespawn));
         features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse", () -> config.tapeMouse.enabled, value -> config.tapeMouse.enabled = value, config.tapeMouse));
+        features.add(new FeatureEntry(Category.UTILITIES, "Pickup Logger", () -> config.itemPickupLogger.enabled, value -> config.itemPickupLogger.enabled = value, config.itemPickupLogger));
         features.add(new FeatureEntry(Category.UTILITIES, "FullBright", () -> config.fullBrightStrength > 0.0f, value -> config.fullBrightStrength = value ? Math.max(0.6f, config.fullBrightStrength) : 0.0f, config));
         features.add(new FeatureEntry(Category.MENU, "Menu Settings", () -> config.menu.enabled, value -> config.menu.enabled = value, config.menu));
     }

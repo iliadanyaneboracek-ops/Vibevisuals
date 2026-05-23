@@ -29,6 +29,7 @@ import ru.suppelemen.vibevisuals.feature.sound.CustomHitSoundPlayer;
 import ru.suppelemen.vibevisuals.feature.utility.AutoEatController;
 import ru.suppelemen.vibevisuals.feature.utility.AutoPotionController;
 import ru.suppelemen.vibevisuals.feature.utility.AutoRespawnController;
+import ru.suppelemen.vibevisuals.feature.utility.ItemPickupLogger;
 import ru.suppelemen.vibevisuals.feature.utility.TapeMouseController;
 import ru.suppelemen.vibevisuals.feature.visual.ProjectilePrediction;
 import ru.suppelemen.vibevisuals.feature.visual.TargetEsp;
@@ -129,6 +130,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(AutoPotionController::tick);
         ClientTickEvents.END_CLIENT_TICK.register(AutoRespawnController::tick);
         ClientTickEvents.END_CLIENT_TICK.register(TapeMouseController::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(ItemPickupLogger::tick);
     }
 
     private static void registerPvpCombatHooks() {
