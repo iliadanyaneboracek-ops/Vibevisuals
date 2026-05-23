@@ -614,6 +614,10 @@ public class VibeVisualsConfig {
         public float settingTextScale = 0.82f;
         public int colorPickerSize = 76;
 
+        // ClickGUI appearance toggles.
+        public boolean liquidGlassBlur = true; // enables MC backdrop blur behind the menu
+        public String theme = "DARK";          // DARK or LIGHT
+
         public static MenuConfig defaults() {
             return new MenuConfig();
         }
@@ -637,6 +641,11 @@ public class VibeVisualsConfig {
             rowHeight = Math.max(12, Math.min(28, rowHeight));
             settingTextScale = clamp(settingTextScale, 0.50f, 1.0f);
             colorPickerSize = Math.max(48, Math.min(128, colorPickerSize));
+            if (theme == null || (!theme.equalsIgnoreCase("DARK") && !theme.equalsIgnoreCase("LIGHT"))) {
+                theme = "DARK";
+            } else {
+                theme = theme.toUpperCase();
+            }
         }
     }
 

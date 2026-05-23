@@ -4,914 +4,801 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Util;
 import ru.suppelemen.vibevisuals.VibeVisualsClient;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
 import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
-import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
 import ru.suppelemen.vibevisuals.theme.MenuTheme;
 import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * ClickGUI for VibeVisuals.
+ * Liquid-glass ClickGUI with drill-down navigation.
  *
- * Layout is independent of Minecraft GUI scale: sizes are expressed in design
- * units (reference 1920x1080) and converted via {@link #dp(float)} which is
- * derived solely from the framebuffer/window size and counters the active
- * MC GUI scale.  This means the menu has a stable physical size regardless
- * of the player's "GUI Scale" setting.
+ * Layout:
+ *   ┌──────────────────────────────────┐
+ *   │ <   vibevisuals                  │
+ *   ├──────────┬───────────────────────┤
+ *   │ Visuals  │  Sky Color       [⏵ ●]│   ← list view
+ *   │ HUD      │  Fog Color       [⏵ ●]│
+ *   │ Utilities│  ...                  │
+ *   │ PvP      │                       │
+ *   │ Menu     │                       │
+ *   └──────────┴───────────────────────┘
+ *
+ * Clicking a module row drills into a settings page that slides in from the
+ * right.  A < Back chevron at the top of that page returns to the list.
  */
 public class VibeVisualsMenuScreen extends Screen {
 
     private static final StyleSpriteSource MENU_FONT =
             new StyleSpriteSource.Font(Identifier.of(VibeVisualsClient.MOD_ID, "clickgui"));
 
-    // Reference frame the design is authored against.
+    // Reference frame.
     private static final float REFERENCE_WIDTH = 1920.0f;
     private static final float REFERENCE_HEIGHT = 1080.0f;
-    private static final float FONT_NATIVE_PX = 9.0f;
+    // Font atlas is rasterised at this height (see clickgui.json "size").
+    // A larger native size + higher oversample give crisper text once we
+    // scale glyphs down via matrix scaling at draw time.
+    private static final float FONT_NATIVE_PX = 20.0f;
 
-    // Text size tokens (design px).
-    private static final float TEXT_LOGO = 14.0f;
-    private static final float TEXT_TAB = 12.0f;
-    private static final float TEXT_TAB_SLASH = 11.0f;
-    private static final float TEXT_CARD = 12.5f;
-    private static final float TEXT_SETTING_LABEL = 11.0f;
-    private static final float TEXT_SETTING_VALUE = 10.5f;
-    private static final float TEXT_SETTING_TITLE = 12.5f;
-    private static final float TEXT_SETTING_STATUS = 10.0f;
-    private static final float TEXT_SEARCH = 11.0f;
+    // Typography (design px).
+    private static final float TEXT_TITLE = 14.0f;
+    private static final float TEXT_BRAND = 18.0f;
+    private static final float TEXT_BRAND_V = 22.0f;
+    private static final float TEXT_CATEGORY = 12.0f;
+    private static final float TEXT_SECTION = 9.5f;
+    private static final float TEXT_ROW = 12.5f;
+    private static final float TEXT_DETAIL_TITLE = 18.0f;
+    private static final float TEXT_DETAIL_LABEL = 11.5f;
+    private static final float TEXT_BACK = 11.5f;
 
-    // Window / layout tokens (design px).
-    private static final int WINDOW_W = 740;
-    private static final int WINDOW_H = 420;
-    private static final int WINDOW_RADIUS = 20;
-    private static final int PAD_WINDOW_X = 26;
-    private static final int PAD_WINDOW_TOP = 24;
-    private static final int HEADER_H = 76;
-    private static final int CARD_H = 44;
-    private static final int CARD_RADIUS = 14;
-    private static final int CARD_GAP_X = 12;
-    private static final int CARD_GAP_Y = 10;
-    private static final int CARD_PAD_X = 18;
-    private static final int TOGGLE_W = 30;
-    private static final int TOGGLE_H = 16;
-    private static final int SEARCH_W = 200;
-    private static final int SEARCH_H = 28;
-    private static final int SEARCH_RADIUS = 14;
-    private static final int SIDE_PANEL_W = 248;
-    private static final int SIDE_PANEL_RADIUS = 16;
-    private static final int SIDE_ROW_H = 26;
-    private static final int DOCK_H = 46;
-    private static final int DOCK_RADIUS = 22;
-    private static final int DOCK_ICON_SLOT = 36;
-    private static final int DOCK_OFFSET_Y = 18;
-    private static final int SCROLLBAR_W = 3;
+    // Brand block above the panel.
+    private static final int BRAND_ICON = 30;
+    private static final int BRAND_GAP_X = 12;
+    private static final int BRAND_BOTTOM_GAP = 16;
 
-    private final HudVisualSettings windowSettings = new HudVisualSettings();
-    private final HudVisualSettings sideSettings = new HudVisualSettings();
-    private final HudVisualSettings dockSettings = new HudVisualSettings();
+    // Panel layout (design px).
+    private static final int PANEL_W = 624;
+    private static final int PANEL_H = 384;
+    private static final int PANEL_RADIUS = 24;
+    private static final int HEADER_H = 44;
+    private static final int SIDEBAR_W = 168;
+    private static final int SIDEBAR_ROW_H = 30;
+    private static final int SIDEBAR_ROW_RADIUS = 8;
+    private static final int SIDEBAR_PILL_PAD = 8;
+    private static final int SECTION_HEADER_GAP = 14;
+    private static final int CATEGORY_ICON = 16;
+    private static final int CATEGORY_ICON_GAP = 10;
+    private static final int PAD_X = 18;
+
+    // Module list rows (right side).
+    private static final int ROW_H = 38;
+    private static final int ROW_GAP = 6;
+    private static final int ROW_RADIUS = 10;
+    private static final int ROW_PAD_X = 14;
+
+    // Apple-style switch.
+    private static final int SWITCH_W = 32;
+    private static final int SWITCH_H = 18;
+
+    // Separator opacities.
+    private static final float SEPARATOR_ALPHA_HEADER = 0.04f;
+    private static final float SEPARATOR_ALPHA_SIDEBAR = 0.06f;
+    private static final float SECTION_HEADER_ALPHA = 0.35f;
 
     private final List<FeatureEntry> features = new ArrayList<>();
-
-    private final SidePanelState leftPanel = new SidePanelState(Side.LEFT);
-    private final SidePanelState rightPanel = new SidePanelState(Side.RIGHT);
-    private final Map<Side, SidePanelState> panels = new EnumMap<>(Side.class);
-
-    private TextFieldWidget searchField;
-    private Category selectedCategory = Category.VISUALS;
-    private String searchQuery = "";
-
-    private int scroll;
-    private int maxScroll;
-    private int gridContentHeight;
-
-    private FeatureEntry hoveredFeature;
-    private boolean hoveredOverToggle;
-    private int hoveredCategoryIndex = -1;
-    private int hoveredDockIndex = -1;
+    private final List<SettingRow> detailSettings = new ArrayList<>();
 
     private long openedAtMs;
-    private float openProgress;
+
+    private Category selected = Category.VISUALS;
+    private int hoveredCategoryIndex = -1;
+    private boolean hoveredBack;
+
+    private FeatureEntry hoveredRow;
+    private boolean hoveredOnSwitch;
+    private FeatureEntry detailTarget;       // null → list view
+    private float detailSlide;               // 0..1 — animates list↔detail transition
+    private boolean hoveredDetailBack;
+    private SettingRow hoveredSettingRow;
+
+    private int contentScroll;
+    private int contentMaxScroll;
 
     public VibeVisualsMenuScreen() {
         super(Text.literal("VibeVisuals"));
-        windowSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        windowSettings.opacity = 0.93f;
-        sideSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        sideSettings.opacity = 0.94f;
-        dockSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        dockSettings.opacity = 0.90f;
-        panels.put(Side.LEFT, leftPanel);
-        panels.put(Side.RIGHT, rightPanel);
     }
-
-    // ---------- Scale helpers ----------
-
-    private float dpScale() {
-        MinecraftClient mc = client != null ? client : MinecraftClient.getInstance();
-        if (mc == null) {
-            return 1.0f;
-        }
-        float fbW = mc.getWindow().getWidth();
-        float fbH = mc.getWindow().getHeight();
-        float layoutScale = Math.min(fbW / REFERENCE_WIDTH, fbH / REFERENCE_HEIGHT);
-        double guiScale = mc.getWindow().getScaleFactor();
-        if (guiScale <= 0.0) {
-            guiScale = 1.0;
-        }
-        float scaled = layoutScale / (float) guiScale;
-        // Stay readable on small windows.
-        return Math.max(scaled, 0.45f);
-    }
-
-    private int dp(float v) {
-        return Math.round(v * dpScale());
-    }
-
-    private float textScale(float pxSize) {
-        return dpScale() * (pxSize / FONT_NATIVE_PX);
-    }
-
-    private int textWidth(String text, float pxSize) {
-        return Math.round(textRenderer.getWidth(text) * textScale(pxSize));
-    }
-
-    private int textHeight(float pxSize) {
-        return Math.round(pxSize * dpScale());
-    }
-
-    private void drawScaledText(DrawContext context, String text, int x, int y, float pxSize, int color) {
-        float scale = textScale(pxSize);
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate((float) x, (float) y);
-        context.getMatrices().scale(scale, scale);
-        context.drawText(textRenderer, styledText(text), 0, 0, color, false);
-        context.getMatrices().popMatrix();
-    }
-
-    private static Text styledText(String text) {
-        return Text.literal(text).styled(s -> s.withFont(MENU_FONT));
-    }
-
-    // ---------- Layout ----------
-
-    private int windowW() { return Math.min(dp(WINDOW_W), width - dp(40)); }
-    private int windowH() { return Math.min(dp(WINDOW_H), height - dp(96)); }
-    private int windowX() { return (width - windowW()) / 2; }
-    private int windowY() { return Math.max(dp(28), (height - windowH() - dp(DOCK_H + DOCK_OFFSET_Y)) / 2); }
-
-    private int gridX() { return windowX() + dp(PAD_WINDOW_X); }
-    private int gridY() { return windowY() + dp(HEADER_H); }
-    private int gridW() { return windowW() - dp(PAD_WINDOW_X * 2); }
-    private int gridH() { return windowY() + windowH() - dp(20) - gridY(); }
-
-    // ---------- Setup ----------
 
     @Override
     protected void init() {
+        MenuTheme.applyTheme(VibeVisualsConfigManager.get().menu.theme);
         rebuildFeatures();
-        ensureSelectedCategoryHasEntries();
         openedAtMs = System.currentTimeMillis();
-
-        int sw = dp(SEARCH_W);
-        int sh = dp(SEARCH_H);
-        int sx = windowX() + windowW() - dp(PAD_WINDOW_X) - sw;
-        int sy = windowY() + dp(PAD_WINDOW_TOP + 24);
-
-        searchField = new TextFieldWidget(textRenderer, sx + dp(26), sy + (sh - dp(12)) / 2,
-                sw - dp(46), dp(12), Text.literal("search"));
-        searchField.setDrawsBackground(false);
-        searchField.setEditableColor(MenuTheme.TEXT_PRIMARY);
-        searchField.setUneditableColor(MenuTheme.TEXT_MUTED);
-        searchField.setMaxLength(48);
-        // Placeholder rendered manually with scaled font; widget placeholder uses MC default font.
-        searchField.setPlaceholder(Text.literal(""));
-        searchField.setChangedListener(v -> {
-            searchQuery = v == null ? "" : v;
-            scroll = 0;
-        });
-        addDrawableChild(searchField);
     }
 
     private void rebuildFeatures() {
         VibeVisualsConfig c = VibeVisualsConfigManager.get();
         features.clear();
-        // HUD
-        features.add(new FeatureEntry(Category.HUD, "Potions", () -> c.potionsCard.enabled, v -> c.potionsCard.enabled = v, c.potionsCard));
-        features.add(new FeatureEntry(Category.HUD, "Cooldowns", () -> c.cooldownsCard.enabled, v -> c.cooldownsCard.enabled = v, c.cooldownsCard));
-        features.add(new FeatureEntry(Category.HUD, "Hot Keys", () -> c.hotKeysCard.enabled, v -> c.hotKeysCard.enabled = v, c.hotKeysCard));
-        features.add(new FeatureEntry(Category.HUD, "Top Bar", () -> c.topBar.enabled, v -> c.topBar.enabled = v, c.topBar));
-        features.add(new FeatureEntry(Category.HUD, "Inventory HUD", () -> c.inventoryHud.enabled, v -> c.inventoryHud.enabled = v, c.inventoryHud));
-        features.add(new FeatureEntry(Category.HUD, "Armor HUD", () -> c.armorHud.enabled, v -> c.armorHud.enabled = v, c.armorHud));
-        features.add(new FeatureEntry(Category.HUD, "Custom Hotbar", () -> c.hotbar.enabled, v -> c.hotbar.enabled = v, c.hotbar));
-        // PVP
-        features.add(new FeatureEntry(Category.PVP, "PvP Combat", () -> c.pvpCard.enabled, v -> c.pvpCard.enabled = v, c.pvpCard));
-        features.add(new FeatureEntry(Category.PVP, "Target ESP", () -> c.targetEsp.enabled, v -> c.targetEsp.enabled = v, c.targetEsp));
-        features.add(new FeatureEntry(Category.PVP, "Saturation", () -> c.saturationDisplay.enabled, v -> c.saturationDisplay.enabled = v, c.saturationDisplay));
+        features.add(new FeatureEntry(Category.HUD, "Potions",        () -> c.potionsCard.enabled,    v -> c.potionsCard.enabled = v, c.potionsCard));
+        features.add(new FeatureEntry(Category.HUD, "Cooldowns",      () -> c.cooldownsCard.enabled,  v -> c.cooldownsCard.enabled = v, c.cooldownsCard));
+        features.add(new FeatureEntry(Category.HUD, "Hot Keys",       () -> c.hotKeysCard.enabled,    v -> c.hotKeysCard.enabled = v, c.hotKeysCard));
+        features.add(new FeatureEntry(Category.HUD, "Top Bar",        () -> c.topBar.enabled,         v -> c.topBar.enabled = v, c.topBar));
+        features.add(new FeatureEntry(Category.HUD, "Inventory HUD",  () -> c.inventoryHud.enabled,   v -> c.inventoryHud.enabled = v, c.inventoryHud));
+        features.add(new FeatureEntry(Category.HUD, "Armor HUD",      () -> c.armorHud.enabled,       v -> c.armorHud.enabled = v, c.armorHud));
+        features.add(new FeatureEntry(Category.HUD, "Custom Hotbar",  () -> c.hotbar.enabled,         v -> c.hotbar.enabled = v, c.hotbar));
+        features.add(new FeatureEntry(Category.PVP, "PvP Combat",     () -> c.pvpCard.enabled,        v -> c.pvpCard.enabled = v, c.pvpCard));
+        features.add(new FeatureEntry(Category.PVP, "Target ESP",     () -> c.targetEsp.enabled,      v -> c.targetEsp.enabled = v, c.targetEsp));
+        features.add(new FeatureEntry(Category.PVP, "Saturation",     () -> c.saturationDisplay.enabled, v -> c.saturationDisplay.enabled = v, c.saturationDisplay));
         features.add(new FeatureEntry(Category.PVP, "Crit Hit Sound", () -> c.customHitSound.enabled, v -> c.customHitSound.enabled = v, c.customHitSound));
-        features.add(new FeatureEntry(Category.PVP, "Shift Up", () -> c.shiftUp.enabled, v -> c.shiftUp.enabled = v, c.shiftUp));
-        // VISUALS
-        features.add(new FeatureEntry(Category.VISUALS, "Sky Color", () -> c.visualEffects.skyColorEnabled, v -> c.visualEffects.skyColorEnabled = v, c.visualEffects));
-        features.add(new FeatureEntry(Category.VISUALS, "Fog Color", () -> c.visualEffects.fogColorEnabled, v -> c.visualEffects.fogColorEnabled = v, c.visualEffects));
-        features.add(new FeatureEntry(Category.VISUALS, "Particles", () -> c.visualEffects.customParticlesEnabled, v -> c.visualEffects.customParticlesEnabled = v, c.visualEffects));
-        features.add(new FeatureEntry(Category.VISUALS, "Screen Fire", () -> c.fireOverlay.enabled, v -> c.fireOverlay.enabled = v, c.fireOverlay));
-        features.add(new FeatureEntry(Category.VISUALS, "Crosshair", () -> c.customCrosshair.enabled, v -> c.customCrosshair.enabled = v, c.customCrosshair));
-        features.add(new FeatureEntry(Category.VISUALS, "Custom Hand", () -> c.customHand.enabled, v -> c.customHand.enabled = v, c.customHand));
-        // UTILITIES
+        features.add(new FeatureEntry(Category.PVP, "Shift Up",       () -> c.shiftUp.enabled,        v -> c.shiftUp.enabled = v, c.shiftUp));
+        features.add(new FeatureEntry(Category.VISUALS, "Sky Color",   () -> c.visualEffects.skyColorEnabled,        v -> c.visualEffects.skyColorEnabled = v, c.visualEffects));
+        features.add(new FeatureEntry(Category.VISUALS, "Fog Color",   () -> c.visualEffects.fogColorEnabled,        v -> c.visualEffects.fogColorEnabled = v, c.visualEffects));
+        features.add(new FeatureEntry(Category.VISUALS, "Particles",   () -> c.visualEffects.customParticlesEnabled, v -> c.visualEffects.customParticlesEnabled = v, c.visualEffects));
+        features.add(new FeatureEntry(Category.VISUALS, "Screen Fire", () -> c.fireOverlay.enabled,                  v -> c.fireOverlay.enabled = v, c.fireOverlay));
+        features.add(new FeatureEntry(Category.VISUALS, "Crosshair",   () -> c.customCrosshair.enabled,              v -> c.customCrosshair.enabled = v, c.customCrosshair));
+        features.add(new FeatureEntry(Category.VISUALS, "Custom Hand", () -> c.customHand.enabled,                   v -> c.customHand.enabled = v, c.customHand));
         features.add(new FeatureEntry(Category.UTILITIES, "Projectile Path", () -> c.projectilePrediction.enabled, v -> c.projectilePrediction.enabled = v, c.projectilePrediction));
-        features.add(new FeatureEntry(Category.UTILITIES, "HUD Animations", () -> c.hudAnimations.enabled, v -> c.hudAnimations.enabled = v, c.hudAnimations));
-        features.add(new FeatureEntry(Category.UTILITIES, "Markers", () -> c.markers.enabled, v -> c.markers.enabled = v, c.markers));
-        features.add(new FeatureEntry(Category.UTILITIES, "AutoEat", () -> c.autoEat.enabled, v -> c.autoEat.enabled = v, c.autoEat));
-        features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion", () -> c.autoPotion.enabled, v -> c.autoPotion.enabled = v, c.autoPotion));
-        features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn", () -> c.autoRespawn.enabled, v -> c.autoRespawn.enabled = v, c.autoRespawn));
-        features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse", () -> c.tapeMouse.enabled, v -> c.tapeMouse.enabled = v, c.tapeMouse));
-        features.add(new FeatureEntry(Category.UTILITIES, "Full Bright", () -> c.fullBrightStrength > 0.0f,
+        features.add(new FeatureEntry(Category.UTILITIES, "HUD Animations",  () -> c.hudAnimations.enabled,        v -> c.hudAnimations.enabled = v, c.hudAnimations));
+        features.add(new FeatureEntry(Category.UTILITIES, "Markers",         () -> c.markers.enabled,              v -> c.markers.enabled = v, c.markers));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoEat",         () -> c.autoEat.enabled,              v -> c.autoEat.enabled = v, c.autoEat));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion",      () -> c.autoPotion.enabled,           v -> c.autoPotion.enabled = v, c.autoPotion));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn",     () -> c.autoRespawn.enabled,          v -> c.autoRespawn.enabled = v, c.autoRespawn));
+        features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse",      () -> c.tapeMouse.enabled,            v -> c.tapeMouse.enabled = v, c.tapeMouse));
+        features.add(new FeatureEntry(Category.UTILITIES, "Full Bright",
+                () -> c.fullBrightStrength > 0.0f,
                 v -> c.fullBrightStrength = v ? Math.max(0.6f, c.fullBrightStrength) : 0.0f, c));
-        // MENU
-        features.add(new FeatureEntry(Category.MENU, "Menu Settings", () -> c.menu.enabled, v -> c.menu.enabled = v, c.menu));
+        features.add(new FeatureEntry(Category.MENU, "Liquid Glass Blur",
+                () -> c.menu.liquidGlassBlur, v -> c.menu.liquidGlassBlur = v, c.menu));
+        features.add(new FeatureEntry(Category.MENU, "Light Theme",
+                () -> "LIGHT".equalsIgnoreCase(c.menu.theme),
+                v -> { c.menu.theme = v ? "LIGHT" : "DARK"; MenuTheme.applyTheme(c.menu.theme); }, c.menu));
     }
 
-    private void ensureSelectedCategoryHasEntries() {
-        if (hasAnyFeature(selectedCategory)) return;
-        for (Category cat : Category.values()) {
-            if (hasAnyFeature(cat)) {
-                selectedCategory = cat;
-                return;
-            }
-        }
-    }
-
-    private boolean hasAnyFeature(Category cat) {
-        for (FeatureEntry f : features) if (f.category == cat) return true;
-        return false;
-    }
-
-    private List<Category> visibleCategories() {
-        List<Category> out = new ArrayList<>();
-        for (Category cat : Category.values()) if (hasAnyFeature(cat)) out.add(cat);
-        return out;
-    }
-
-    private List<FeatureEntry> visibleFeatures() {
-        List<FeatureEntry> out = new ArrayList<>();
-        String q = searchQuery.trim().toLowerCase(Locale.ROOT);
-        for (FeatureEntry f : features) {
-            if (!q.isEmpty()) {
-                if (f.name.toLowerCase(Locale.ROOT).contains(q)) out.add(f);
-            } else if (f.category == selectedCategory) {
-                out.add(f);
-            }
-        }
-        return out;
-    }
-
-    // ---------- Render entry ----------
+    // ---------- Render ----------
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        long now = System.currentTimeMillis();
-        openProgress = Math.min(1.0f, Math.max(0.0f, (now - openedAtMs) / MenuTheme.OPEN_ANIM_DURATION_MS));
-        float eased = easeOutCubic(openProgress);
+        float eased = easeOutCubic(Math.min(1.0f,
+                (System.currentTimeMillis() - openedAtMs) / MenuTheme.OPEN_ANIM_DURATION_MS));
 
-        // Reposition search/setting inputs to current dp scale each frame.
-        positionSearchField();
-        positionSidePanelInputs(leftPanel);
-        positionSidePanelInputs(rightPanel);
-
+        if (VibeVisualsConfigManager.get().menu.liquidGlassBlur) {
+            applyMenuBlur(context);
+        }
         renderDim(context, eased);
-        renderMainWindow(context, mouseX, mouseY, eased);
-        renderDock(context, mouseX, mouseY, eased);
-        advanceSidePanel(leftPanel);
-        advanceSidePanel(rightPanel);
-        renderSidePanel(context, mouseX, mouseY, eased, leftPanel);
-        renderSidePanel(context, mouseX, mouseY, eased, rightPanel);
+
+        int pw = panelW();
+        int ph = panelH();
+        int px = (width - pw) / 2;
+        int py = panelY();
+
+        renderBrandAbovePanel(context, eased, px, py, pw);
+
+        drawLiquidGlass(context, px, py, pw, ph, dp(PANEL_RADIUS),
+                MenuTheme.MATERIAL_PANEL, MenuTheme.MATERIAL_OPACITY_PANEL, eased);
+
+        // Advance drill-down animation.
+        float target = detailTarget != null ? 1.0f : 0.0f;
+        detailSlide += (target - detailSlide) * 0.28f;
+
+        renderHeader(context, mouseX, mouseY, eased, px, py, pw);
+        renderSidebar(context, mouseX, mouseY, eased, px, py, ph);
+        renderContent(context, mouseX, mouseY, eased, px, py, pw, ph);
+
         super.render(context, mouseX, mouseY, delta);
     }
 
-    private void renderDim(DrawContext context, float eased) {
-        int alpha = (int) (0x9C * eased) & 0xFF;
-        context.fill(0, 0, width, height, (alpha << 24) | 0x07050F);
+    private int brandBlockHeight() {
+        return Math.max(dp(BRAND_ICON), textHeight(TEXT_BRAND)) + dp(BRAND_BOTTOM_GAP);
     }
 
-    // ---------- Main window ----------
-
-    private void renderMainWindow(DrawContext context, int mouseX, int mouseY, float eased) {
-        int wx = windowX();
-        int wy = windowY();
-        int ww = windowW();
-        int wh = windowH();
-
-        windowSettings.radius = dp(WINDOW_RADIUS);
-        windowSettings.opacity = 0.92f * eased;
-        HudCardRenderer.drawCard(context, wx, wy, ww, wh, windowSettings);
-
-        // Subtle deep tint baseline.
-        HudCardRenderer.drawOverlayCard(context, wx, wy, ww, wh, dp(WINDOW_RADIUS),
-                MenuTheme.BG_PANEL, 0.30f * eased);
-
-        // Top purple glow gradient (fades down) – approximated with 3 thin overlay strips.
-        int gradH = dp(70);
-        int gradient = MenuTheme.PURPLE_DEEP;
-        HudCardRenderer.drawOverlayCard(context, wx, wy, ww, gradH, dp(WINDOW_RADIUS), gradient, 0.55f * eased);
-        HudCardRenderer.drawOverlayCard(context, wx, wy, ww, gradH * 2 / 3, dp(WINDOW_RADIUS), gradient, 0.35f * eased);
-        HudCardRenderer.drawOverlayCard(context, wx, wy, ww, gradH / 3, dp(WINDOW_RADIUS), gradient, 0.30f * eased);
-
-        // Outline (very subtle).
-        HudCardRenderer.drawShaderOutline(context, wx, wy, ww, wh, dp(WINDOW_RADIUS), 0.6f, 0.28f * eased);
-
-        renderHeader(context, mouseX, mouseY, eased, wx, wy, ww);
-        renderFeatureGrid(context, mouseX, mouseY, eased);
+    private int panelY() {
+        int total = brandBlockHeight() + panelH();
+        int top = Math.max(dp(20), (height - total) / 2);
+        return top + brandBlockHeight();
     }
 
-    private void renderHeader(DrawContext context, int mouseX, int mouseY, float eased, int wx, int wy, int ww) {
-        // Brand (centered).
-        String brand = "vibevisuals";
-        int brandWidth = textWidth(brand, TEXT_LOGO);
-        int iconSize = dp(16);
-        int gap = dp(8);
-        int brandBlockW = iconSize + gap + brandWidth;
-        int brandX = wx + (ww - brandBlockW) / 2;
-        int brandY = wy + dp(PAD_WINDOW_TOP);
-
-        drawPulseLogo(context, brandX, brandY + dp(1), iconSize,
-                MenuTheme.withAlpha(MenuTheme.ACCENT_BRIGHT, eased));
-        drawScaledText(context, brand, brandX + iconSize + gap, brandY,
-                TEXT_LOGO, MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
-
-        // Tabs row (left) + search (right).
-        int rowY = wy + dp(PAD_WINDOW_TOP + 24);
-        renderTabs(context, mouseX, mouseY, eased, wx + dp(PAD_WINDOW_X), rowY);
-        renderSearch(context, eased, wx + ww - dp(PAD_WINDOW_X + SEARCH_W), rowY - (dp(SEARCH_H) - textHeight(TEXT_TAB)) / 2);
-
-        // Separator under header row.
-        int sepY = wy + dp(HEADER_H - 6);
-        context.fill(wx + dp(PAD_WINDOW_X), sepY, wx + ww - dp(PAD_WINDOW_X), sepY + 1,
-                MenuTheme.withAlpha(MenuTheme.BORDER_SUBTLE | 0xFF000000, 0.55f * eased));
+    private void renderBrandAbovePanel(DrawContext ctx, float eased, int px, int py, int pw) {
+        int icon = dp(BRAND_ICON);
+        int gap = dp(BRAND_GAP_X);
+        int textW = textWidth("VibeVisuals", TEXT_BRAND);
+        int blockW = icon + gap + textW;
+        int blockX = px + (pw - blockW) / 2;
+        int blockTop = py - brandBlockHeight();
+        int regionH = brandBlockHeight() - dp(BRAND_BOTTOM_GAP);
+        int iconY = blockTop + (regionH - icon) / 2;
+        int textY = blockTop + (regionH - textHeight(TEXT_BRAND)) / 2;
+        drawVLogo(ctx, blockX, iconY, icon, eased);
+        drawScaledText(ctx, "VibeVisuals", blockX + icon + gap, textY, TEXT_BRAND,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
     }
 
-    private void renderTabs(DrawContext context, int mouseX, int mouseY, float eased, int x, int y) {
-        List<Category> visible = visibleCategories();
-        hoveredCategoryIndex = -1;
-        int cursor = x;
-        int tabHitTop = y - dp(4);
-        int tabHitBot = y + textHeight(TEXT_TAB) + dp(4);
-        for (int i = 0; i < visible.size(); i++) {
-            Category cat = visible.get(i);
-            String label = cat.label;
-            int labelW = textWidth(label, TEXT_TAB);
-            boolean selected = cat == selectedCategory && searchQuery.isEmpty();
-            boolean hovered = mouseX >= cursor && mouseX <= cursor + labelW
-                    && mouseY >= tabHitTop && mouseY <= tabHitBot;
-            if (hovered) hoveredCategoryIndex = i;
-
-            int color;
-            if (selected) color = MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased);
-            else if (hovered) color = MenuTheme.withAlpha(MenuTheme.TEXT_SECONDARY | 0xFF000000, 0.95f * eased);
-            else color = MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, eased);
-
-            drawScaledText(context, label, cursor, y, TEXT_TAB, color);
-            if (selected) {
-                int underY = y + textHeight(TEXT_TAB) + dp(4);
-                int underH = Math.max(1, dp(1.4f));
-                context.fill(cursor, underY, cursor + labelW, underY + underH,
-                        MenuTheme.withAlpha(MenuTheme.ACCENT_BRIGHT, eased));
-            }
-            cursor += labelW;
-            if (i < visible.size() - 1) {
-                String sep = "  /  ";
-                int sepW = textWidth(sep, TEXT_TAB_SLASH);
-                drawScaledText(context, sep, cursor, y, TEXT_TAB_SLASH,
-                        MenuTheme.withAlpha(MenuTheme.TEXT_DISABLED | 0xFF000000, eased));
-                cursor += sepW;
-            }
-        }
+    /**
+     * App-icon-style "V" mark. Two colour variants: a dark navy plate with a
+     * white V for the dark theme, a light plate with a dark V for the light
+     * theme — matching the brand assets the user provided.
+     */
+    private void drawVLogo(DrawContext ctx, int x, int y, int size, float eased) {
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        int plate = light ? 0xFFEFEFF6 : 0xFF0B0B16;
+        int vColor = light ? 0xFF0E0E18 : 0xFFFFFFFF;
+        int radius = Math.max(4, size * 22 / 100);
+        // Plate background (solid, NOT translucent — brand mark stays readable).
+        HudCardRenderer.drawOverlayCard(ctx, x, y, size, size, radius, plate, eased);
+        // Thin contrasting outline so the plate reads on either theme's backdrop.
+        HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, radius, 0.55f, 0.25f * eased);
+        // "V" letter centred in the plate. The optical centre of a "V" glyph
+        // sits above the geometric centre (wide top, pointy bottom), so we
+        // nudge it down a little to balance it inside the square.
+        int vW = textWidth("V", TEXT_BRAND_V);
+        int vH = textHeight(TEXT_BRAND_V);
+        int vx = x + (size - vW) / 2;
+        int vy = y + (size - vH) / 2 + Math.max(2, size / 10);
+        drawScaledText(ctx, "V", vx, vy, TEXT_BRAND_V,
+                MenuTheme.withAlpha(vColor, eased));
     }
 
-    private void renderSearch(DrawContext context, float eased, int sx, int sy) {
-        int sw = dp(SEARCH_W);
-        int sh = dp(SEARCH_H);
-        HudCardRenderer.drawOverlayCard(context, sx, sy, sw, sh, dp(SEARCH_RADIUS),
-                MenuTheme.BG_INPUT, 0.85f * eased);
-        HudCardRenderer.drawShaderOutline(context, sx, sy, sw, sh, dp(SEARCH_RADIUS),
-                0.6f, 0.55f * eased);
-        // Magnifier glyph on the left.
-        drawMagnifier(context, sx + dp(12), sy + sh / 2 - dp(4),
-                MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, eased));
-        // Tiny pencil dot on the right.
-        int rx = sx + sw - dp(14);
-        int ry = sy + sh / 2;
-        context.fill(rx, ry - 1, rx + dp(4), ry + dp(2),
-                MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, eased));
-        // Custom placeholder when empty (and not focused), to avoid huge MC default font.
-        if (searchField != null && searchField.getText().isEmpty()) {
-            int phY = sy + (sh - textHeight(TEXT_SEARCH)) / 2;
-            drawScaledText(context, "Поиск", sx + dp(26), phY, TEXT_SEARCH,
-                    MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, 0.85f * eased));
-        }
-    }
+    // ---------- Header ----------
 
-    private void positionSearchField() {
-        if (searchField == null) return;
-        int sw = dp(SEARCH_W);
-        int sh = dp(SEARCH_H);
-        int sx = windowX() + windowW() - dp(PAD_WINDOW_X) - sw;
-        int sy = windowY() + dp(PAD_WINDOW_TOP + 24) - (sh - textHeight(TEXT_TAB)) / 2;
-        searchField.setX(sx + dp(24));
-        searchField.setY(sy + (sh - dp(12)) / 2);
-        searchField.setWidth(sw - dp(44));
-        searchField.setHeight(dp(12));
-    }
+    private void renderHeader(DrawContext ctx, int mx, int my, float eased,
+                              int px, int py, int pw) {
+        int hH = dp(HEADER_H);
 
-    // ---------- Feature grid ----------
-
-    private void renderFeatureGrid(DrawContext context, int mouseX, int mouseY, float eased) {
-        int gx = gridX();
-        int gy = gridY();
-        int gw = gridW();
-        int gh = gridH();
-        if (gh <= 0) return;
-
-        List<FeatureEntry> visible = visibleFeatures();
-        int colW = (gw - dp(CARD_GAP_X) - dp(SCROLLBAR_W + 4)) / 2;
-        int cardH = dp(CARD_H);
-        int gap = dp(CARD_GAP_Y);
-        int rows = (visible.size() + 1) / 2;
-        gridContentHeight = rows * (cardH + gap);
-        maxScroll = Math.max(0, gridContentHeight - gh);
-        if (scroll > maxScroll) scroll = maxScroll;
-
-        hoveredFeature = null;
-        hoveredOverToggle = false;
-
-        context.enableScissor(gx, gy, gx + gw, gy + gh);
-        for (int i = 0; i < visible.size(); i++) {
-            FeatureEntry f = visible.get(i);
-            int col = i % 2;
-            int row = i / 2;
-            f.x = gx + col * (colW + dp(CARD_GAP_X));
-            f.y = gy + row * (cardH + gap) - scroll;
-            f.width = colW;
-            f.height = cardH;
-            f.toggleWidth = dp(TOGGLE_W);
-            f.toggleHeight = dp(TOGGLE_H);
-            f.toggleX = f.x + colW - dp(CARD_PAD_X) - f.toggleWidth;
-            f.toggleY = f.y + (cardH - f.toggleHeight) / 2;
-            renderCard(context, mouseX, mouseY, f, eased);
-        }
-        context.disableScissor();
-
-        // Scrollbar
-        if (maxScroll > 0) {
-            int trackX = gx + gw - dp(SCROLLBAR_W);
-            int trackTop = gy + dp(2);
-            int trackBot = gy + gh - dp(2);
-            int trackH = trackBot - trackTop;
-            int thumbH = Math.max(dp(18), (int) ((float) gh / gridContentHeight * trackH));
-            int thumbY = trackTop + (int) ((float) scroll / maxScroll * (trackH - thumbH));
-            context.fill(trackX, trackTop, trackX + dp(SCROLLBAR_W), trackBot,
-                    MenuTheme.withAlpha(MenuTheme.BG_CARD, 0.45f * eased));
-            context.fill(trackX, thumbY, trackX + dp(SCROLLBAR_W), thumbY + thumbH,
-                    MenuTheme.withAlpha(MenuTheme.ACCENT, 0.55f * eased));
-        }
-
-        // If a panel target scrolls out of view, close that side.
-        closePanelIfOrphaned(leftPanel, visible);
-        closePanelIfOrphaned(rightPanel, visible);
-    }
-
-    private void closePanelIfOrphaned(SidePanelState p, List<FeatureEntry> visible) {
-        if (p.target == null) return;
-        boolean stillListed = visible.contains(p.target);
-        int gy = gridY();
-        int gh = gridH();
-        boolean inGrid = p.target.y + p.target.height > gy && p.target.y < gy + gh;
-        if (!stillListed || !inGrid) closePanel(p);
-    }
-
-    private void renderCard(DrawContext context, int mouseX, int mouseY, FeatureEntry f, float eased) {
-        int gy = gridY();
-        int gh = gridH();
-        if (f.y + f.height < gy || f.y > gy + gh) {
-            f.hoveredLastFrame = false;
-            return;
-        }
-        boolean inGrid = mouseX >= gridX() && mouseX <= gridX() + gridW()
-                && mouseY >= gy && mouseY <= gy + gh;
-        boolean hovered = inGrid && mouseX >= f.x && mouseX <= f.x + f.width
-                && mouseY >= f.y && mouseY <= f.y + f.height;
-        if (hovered) {
-            hoveredFeature = f;
-            hoveredOverToggle = isMouseInsideToggle(f, mouseX, mouseY);
-            if (!f.hoveredLastFrame) playHoverSound();
-        }
-        f.hoveredLastFrame = hovered;
-
-        boolean enabled = f.enabled.get();
-        boolean isPanelTarget = leftPanel.target == f || rightPanel.target == f;
-        float targetHover = (hovered || isPanelTarget) ? 1.0f : 0.0f;
-        f.hoverProgress += (targetHover - f.hoverProgress) * MenuTheme.HOVER_LERP;
-
-        int baseBg = enabled ? MenuTheme.BG_CARD_ACTIVE : MenuTheme.BG_CARD;
-        int bg = MenuTheme.lerpColor(baseBg, MenuTheme.BG_CARD_HOVER, f.hoverProgress * 0.55f);
-        HudCardRenderer.drawOverlayCard(context, f.x, f.y, f.width, f.height, dp(CARD_RADIUS), bg, 0.82f * eased);
-        HudCardRenderer.drawShaderOutline(context, f.x, f.y, f.width, f.height, dp(CARD_RADIUS),
-                0.5f, (enabled ? 0.32f : 0.15f) * eased + f.hoverProgress * 0.18f);
-
-        int nameColor = enabled
+        // Back chevron — only the screen's own close affordance.  Detail back is
+        // rendered separately inside the content area.
+        int backSize = dp(20);
+        int backX = px + dp(PAD_X);
+        int backY = py + (hH - backSize) / 2;
+        hoveredBack = mx >= backX && mx <= backX + backSize
+                && my >= backY && my <= backY + backSize;
+        int backColor = hoveredBack
                 ? MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased)
-                : MenuTheme.withAlpha(MenuTheme.TEXT_OFF | 0xFF000000, eased);
-        int textY = f.y + (f.height - textHeight(TEXT_CARD)) / 2;
-        drawScaledText(context, f.name, f.x + dp(CARD_PAD_X), textY, TEXT_CARD, nameColor);
+                : MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased);
+        drawChevronLeft(ctx, backX, backY, backSize, backColor);
 
-        f.knobProgress += ((enabled ? 1.0f : 0.0f) - f.knobProgress) * MenuTheme.KNOB_LERP;
-        drawAnimatedToggle(context, f.toggleX, f.toggleY, f.toggleWidth, f.toggleHeight, f.knobProgress, eased);
+        // Brand label is rendered above the panel — header keeps only the back chevron.
+
+        int sepY = py + hH;
+        int sepStartX = px + dp(SIDEBAR_W);
+        ctx.fill(sepStartX, sepY, px + pw, sepY + 1,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SEPARATOR_ALPHA_HEADER * eased));
     }
 
-    private boolean isMouseInsideToggle(FeatureEntry f, double mx, double my) {
-        int pad = dp(3);
-        return mx >= f.toggleX - pad && mx <= f.toggleX + f.toggleWidth + pad
-                && my >= f.toggleY - pad && my <= f.toggleY + f.toggleHeight + pad;
-    }
+    // ---------- Sidebar ----------
 
-    private void drawAnimatedToggle(DrawContext context, int x, int y, int w, int h, float knob, float eased) {
-        int trackOff = MenuTheme.BG_CARD;
-        int trackOn = MenuTheme.ACCENT;
-        int trackColor = MenuTheme.lerpColor(trackOff, trackOn, knob);
-        HudCardRenderer.drawOverlayCard(context, x, y, w, h, h / 2.0f, trackColor, 0.88f * eased);
-        if (knob > 0.05f) {
-            HudCardRenderer.drawShaderOutline(context, x - 1, y - 1, w + 2, h + 2,
-                    h / 2.0f + 1, 0.5f, 0.40f * knob * eased);
+    private void renderSidebar(DrawContext ctx, int mx, int my, float eased,
+                                int px, int py, int ph) {
+        int hH = dp(HEADER_H);
+        int sbW = dp(SIDEBAR_W);
+        int rowH = dp(SIDEBAR_ROW_H);
+        int sbX = px;
+        int sbY = py + hH + dp(10);
+        int pillInset = dp(SIDEBAR_PILL_PAD);
+        int pillX = sbX + pillInset;
+        int pillW = sbW - pillInset * 2;
+        int iconSize = dp(CATEGORY_ICON);
+        int iconGap = dp(CATEGORY_ICON_GAP);
+
+        Category[] cats = Category.values();
+        hoveredCategoryIndex = -1;
+
+        int cursorY = sbY;
+        Section lastSection = null;
+        for (int i = 0; i < cats.length; i++) {
+            Category cat = cats[i];
+            Section section = cat.section;
+            if (section != lastSection) {
+                if (lastSection != null) cursorY += dp(SECTION_HEADER_GAP - 6);
+                drawScaledText(ctx, section.label,
+                        pillX + dp(10), cursorY + dp(2), TEXT_SECTION,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SECTION_HEADER_ALPHA * eased));
+                cursorY += dp(SECTION_HEADER_GAP);
+                lastSection = section;
+            }
+
+            int rowY = cursorY;
+            boolean hov = mx >= pillX && mx <= pillX + pillW
+                    && my >= rowY && my <= rowY + rowH;
+            if (hov) hoveredCategoryIndex = i;
+
+            boolean isSelected = cat == selected;
+            if (isSelected) {
+                drawLiquidGlass(ctx, pillX, rowY, pillW, rowH, dp(SIDEBAR_ROW_RADIUS),
+                        MenuTheme.MATERIAL_CARD_ACTIVE,
+                        MenuTheme.MATERIAL_OPACITY_CARD_ACTIVE + 0.05f, eased);
+            } else if (hov) {
+                drawLiquidGlass(ctx, pillX, rowY, pillW, rowH, dp(SIDEBAR_ROW_RADIUS),
+                        MenuTheme.MATERIAL_CARD,
+                        MenuTheme.MATERIAL_OPACITY_CARD + 0.05f, eased);
+            }
+
+            int contentX = pillX + dp(10);
+            int iconY = rowY + (rowH - iconSize) / 2;
+            int iconColor;
+            int textColor;
+            if (isSelected) {
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased);
+            } else if (hov) {
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.80f * eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.85f * eased);
+            } else {
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.45f * eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased);
+            }
+            drawCategoryIcon(ctx, cat, contentX, iconY, iconSize, iconColor);
+            int textY = rowY + (rowH - textHeight(TEXT_CATEGORY)) / 2;
+            drawScaledText(ctx, cat.label, contentX + iconSize + iconGap, textY,
+                    TEXT_CATEGORY, textColor);
+
+            cursorY += rowH + dp(2);
         }
-        int knobSize = h - dp(4);
-        if (knobSize < 4) knobSize = h - 2;
-        int knobMinX = x + (h - knobSize) / 2;
-        int knobMaxX = x + w - knobSize - (h - knobSize) / 2;
+
+        int vsX = sbX + sbW;
+        ctx.fill(vsX, py, vsX + 1, py + ph,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SEPARATOR_ALPHA_SIDEBAR * eased));
+    }
+
+    // ---------- Content area (list ↔ detail drill-down) ----------
+
+    private void renderContent(DrawContext ctx, int mx, int my, float eased,
+                                int px, int py, int pw, int ph) {
+        int cx = px + dp(SIDEBAR_W) + 1;
+        int cy = py + dp(HEADER_H);
+        int cw = pw - dp(SIDEBAR_W) - 1;
+        int chh = ph - dp(HEADER_H);
+
+        ctx.enableScissor(cx, cy, cx + cw, cy + chh);
+
+        // Slide: list pans out to the left, detail pans in from the right.
+        int slidePx = Math.round(detailSlide * cw);
+        // List sits offset by -slidePx, detail by (cw - slidePx).
+        if (detailSlide < 0.99f || detailTarget == null) {
+            renderModuleList(ctx, mx + slidePx, my, eased, cx - slidePx, cy, cw, chh);
+        }
+        if (detailSlide > 0.02f || detailTarget != null) {
+            int detailX = cx + cw - slidePx;
+            renderDetail(ctx, mx - (detailX - cx), my, eased, detailX, cy, cw, chh);
+        }
+
+        ctx.disableScissor();
+    }
+
+    private void renderModuleList(DrawContext ctx, int mx, int my, float eased,
+                                   int cx, int cy, int cw, int chh) {
+        int rowH = dp(ROW_H);
+        int rowGap = dp(ROW_GAP);
+        int padX = dp(PAD_X);
+        int rowX = cx + padX;
+        int rowW = cw - padX * 2;
+        int listTop = cy + dp(12);
+        int listBot = cy + chh - dp(12);
+
+        // Collect features in current category.
+        List<FeatureEntry> rows = new ArrayList<>();
+        for (FeatureEntry f : features) if (f.category == selected) rows.add(f);
+
+        // Scroll calculations.
+        int contentH = rows.size() * (rowH + rowGap) - rowGap;
+        contentMaxScroll = Math.max(0, contentH - (listBot - listTop));
+        if (contentScroll > contentMaxScroll) contentScroll = contentMaxScroll;
+
+        hoveredRow = null;
+        hoveredOnSwitch = false;
+
+        int cursor = listTop - contentScroll;
+        for (FeatureEntry f : rows) {
+            int rowY = cursor;
+            cursor += rowH + rowGap;
+            if (rowY + rowH < listTop) continue;
+            if (rowY > listBot) break;
+
+            f.x = rowX;
+            f.y = rowY;
+            f.width = rowW;
+            f.height = rowH;
+            int swW = dp(SWITCH_W);
+            int swH = dp(SWITCH_H);
+            f.switchX = rowX + rowW - dp(ROW_PAD_X) - swW;
+            f.switchY = rowY + (rowH - swH) / 2;
+            f.switchWidth = swW;
+            f.switchHeight = swH;
+
+            boolean hov = mx >= f.x && mx <= f.x + f.width
+                    && my >= f.y && my <= f.y + f.height;
+            boolean onSwitch = mx >= f.switchX - dp(3) && mx <= f.switchX + f.switchWidth + dp(3)
+                    && my >= f.switchY - dp(3) && my <= f.switchY + f.switchHeight + dp(3);
+            if (hov) {
+                hoveredRow = f;
+                hoveredOnSwitch = onSwitch;
+            }
+
+            f.hoverProgress += ((hov ? 1.0f : 0.0f) - f.hoverProgress) * MenuTheme.HOVER_LERP;
+
+            // Row hover background (only when hovering NOT over switch — to hint drill-down).
+            if (f.hoverProgress > 0.02f && !onSwitch) {
+                drawLiquidGlass(ctx, f.x, f.y, f.width, f.height, dp(ROW_RADIUS),
+                        MenuTheme.MATERIAL_CARD,
+                        (MenuTheme.MATERIAL_OPACITY_CARD * 0.6f) * f.hoverProgress + 0.04f, eased);
+            }
+
+            boolean enabled = f.enabled.get();
+            int labelColor = enabled
+                    ? MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased)
+                    : MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased);
+            int labelY = rowY + (rowH - textHeight(TEXT_ROW)) / 2;
+            drawScaledText(ctx, f.name, rowX + dp(ROW_PAD_X), labelY, TEXT_ROW, labelColor);
+
+            // Chevron `>` to the left of the switch — drill hint.
+            int chevX = f.switchX - dp(14);
+            int chevY = rowY + (rowH - dp(10)) / 2;
+            int chevColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL,
+                    (0.30f + f.hoverProgress * 0.30f) * eased);
+            drawChevronRight(ctx, chevX, chevY, dp(10), chevColor);
+
+            // Apple-style switch.
+            f.knobAnim += ((enabled ? 1.0f : 0.0f) - f.knobAnim) * MenuTheme.KNOB_LERP;
+            drawAppleSwitch(ctx, f.switchX, f.switchY, f.switchWidth, f.switchHeight,
+                    f.knobAnim, eased);
+        }
+    }
+
+    private void renderDetail(DrawContext ctx, int mx, int my, float eased,
+                               int cx, int cy, int cw, int chh) {
+        FeatureEntry target = detailTarget;
+        if (target == null) return;
+
+        int padX = dp(PAD_X);
+
+        // Back row.
+        int backY = cy + dp(14);
+        int backSize = dp(14);
+        int backX = cx + padX;
+        hoveredDetailBack = mx >= backX - dp(4) && mx <= backX + backSize + dp(40)
+                && my >= backY - dp(4) && my <= backY + backSize + dp(4);
+        int backColor = hoveredDetailBack
+                ? MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased)
+                : MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.70f * eased);
+        drawChevronLeft(ctx, backX, backY, backSize, backColor);
+        drawScaledText(ctx, "Back", backX + backSize + dp(6),
+                backY + (backSize - textHeight(TEXT_BACK)) / 2,
+                TEXT_BACK, backColor);
+
+        // Title row.
+        int titleY = backY + backSize + dp(10);
+        drawScaledText(ctx, target.name, cx + padX, titleY, TEXT_DETAIL_TITLE,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+
+        // Enable toggle row (always first, mirrors the list switch).
+        int controlsTop = titleY + textHeight(TEXT_DETAIL_TITLE) + dp(20);
+        int rowH = dp(34);
+        int rowRadius = dp(10);
+        int rowsX = cx + padX;
+        int rowsW = cw - padX * 2;
+
+        hoveredSettingRow = null;
+
+        // Synthetic "Enabled" row.
+        int enRowY = controlsTop;
+        drawSettingRowBg(ctx, rowsX, enRowY, rowsW, rowH, rowRadius, eased);
+        drawScaledText(ctx, "Enabled", rowsX + dp(14),
+                enRowY + (rowH - textHeight(TEXT_DETAIL_LABEL)) / 2,
+                TEXT_DETAIL_LABEL,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+        int swW = dp(SWITCH_W);
+        int swH = dp(SWITCH_H);
+        int enSwX = rowsX + rowsW - dp(14) - swW;
+        int enSwY = enRowY + (rowH - swH) / 2;
+        target.detailKnobAnim += ((target.enabled.get() ? 1.0f : 0.0f) - target.detailKnobAnim)
+                * MenuTheme.KNOB_LERP;
+        drawAppleSwitch(ctx, enSwX, enSwY, swW, swH, target.detailKnobAnim, eased);
+        target.detailSwitchX = enSwX;
+        target.detailSwitchY = enSwY;
+        target.detailSwitchW = swW;
+        target.detailSwitchH = swH;
+
+        // Reflected setting rows.
+        if (detailSettings.isEmpty()) {
+            rebuildDetailSettings(target);
+        }
+
+        int cursorY = enRowY + rowH + dp(6);
+        for (SettingRow row : detailSettings) {
+            if (cursorY + rowH > cy + chh - dp(12)) break;
+            drawSettingRowBg(ctx, rowsX, cursorY, rowsW, rowH, rowRadius, eased);
+
+            row.x = rowsX;
+            row.y = cursorY;
+            row.width = rowsW;
+            row.height = rowH;
+
+            String label = humanize(row.field.getName());
+            int labelY = cursorY + (rowH - textHeight(TEXT_DETAIL_LABEL)) / 2;
+            drawScaledText(ctx, label, rowsX + dp(14), labelY, TEXT_DETAIL_LABEL,
+                    MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.92f * eased));
+
+            Class<?> type = row.field.getType();
+            if (type == boolean.class) {
+                int sx = rowsX + rowsW - dp(14) - swW;
+                int sy = cursorY + (rowH - swH) / 2;
+                row.switchX = sx;
+                row.switchY = sy;
+                row.switchW = swW;
+                row.switchH = swH;
+                boolean v = readBool(target.config, row.field);
+                row.knobAnim += ((v ? 1.0f : 0.0f) - row.knobAnim) * MenuTheme.KNOB_LERP;
+                drawAppleSwitch(ctx, sx, sy, swW, swH, row.knobAnim, eased);
+            } else {
+                // Non-boolean: show value as text on right (read-only for now).
+                String text = fieldToString(target.config, row.field);
+                int tw = textWidth(text, TEXT_DETAIL_LABEL);
+                int tx = rowsX + rowsW - dp(14) - tw;
+                drawScaledText(ctx, text, tx, labelY, TEXT_DETAIL_LABEL,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased));
+            }
+
+            boolean rowHov = mx >= row.x && mx <= row.x + row.width
+                    && my >= row.y && my <= row.y + row.height;
+            if (rowHov) hoveredSettingRow = row;
+
+            cursorY += rowH + dp(4);
+        }
+    }
+
+    private void drawSettingRowBg(DrawContext ctx, int x, int y, int w, int h,
+                                   int radius, float eased) {
+        drawLiquidGlass(ctx, x, y, w, h, radius,
+                MenuTheme.MATERIAL_CARD,
+                MenuTheme.MATERIAL_OPACITY_CARD + 0.05f, eased);
+    }
+
+    // ---------- Apple switch + icons + chevrons ----------
+
+    private void drawAppleSwitch(DrawContext ctx, int x, int y, int w, int h, float knob, float eased) {
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        // Neutral palette — no purple.  Track OFF is muted, track ON is a
+        // bright neutral (white in dark mode, near-black in light mode).
+        int trackOff = light ? 0xFFB6B6BD : 0xFF34344A;
+        int trackOn  = light ? 0xFF1F1F2A : 0xFFE9E9F2;
+        int track = MenuTheme.lerpColor(trackOff, trackOn, knob);
+        HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, h / 2.0f, track, 0.92f * eased);
+        HudCardRenderer.drawShaderOutline(ctx, x, y, w, h, h / 2.0f, 0.5f, 0.20f * eased);
+        int knobPad = Math.max(2, dp(2));
+        int knobSize = h - knobPad * 2;
+        int knobMinX = x + knobPad;
+        int knobMaxX = x + w - knobSize - knobPad;
         int knobX = Math.round(knobMinX + (knobMaxX - knobMinX) * knob);
-        int knobColor = MenuTheme.lerpColor(0xFFBDBECC, 0xFFFFFFFF, knob);
-        HudCardRenderer.drawOverlayCard(context, knobX, y + (h - knobSize) / 2,
+        // Knob colour flips with theme so it stays visible against the track.
+        int knobOff = light ? 0xFFFFFFFF : 0xFFFFFFFF;
+        int knobOn  = light ? 0xFFFFFFFF : 0xFF1A1A26;
+        int knobColor = MenuTheme.lerpColor(knobOff, knobOn, knob);
+        HudCardRenderer.drawOverlayCard(ctx, knobX, y + knobPad,
                 knobSize, knobSize, knobSize / 2.0f, knobColor, eased);
     }
 
-    // ---------- Dock ----------
-
-    private void renderDock(DrawContext context, int mouseX, int mouseY, float eased) {
-        DockItem[] items = DockItem.values();
-        int slotsW = items.length * dp(DOCK_ICON_SLOT);
-        int dockH = dp(DOCK_H);
-        int dockW = slotsW + dp(20);
-        int dockX = windowX() + (windowW() - dockW) / 2;
-        int dockY = windowY() + windowH() + dp(DOCK_OFFSET_Y);
-
-        dockSettings.radius = dp(DOCK_RADIUS);
-        dockSettings.opacity = 0.90f * eased;
-        HudCardRenderer.drawCard(context, dockX, dockY, dockW, dockH, dockSettings);
-        HudCardRenderer.drawOverlayCard(context, dockX, dockY, dockW, dockH, dp(DOCK_RADIUS),
-                MenuTheme.BG_PANEL_SOFT, 0.30f * eased);
-        HudCardRenderer.drawShaderOutline(context, dockX, dockY, dockW, dockH, dp(DOCK_RADIUS),
-                0.5f, 0.22f * eased);
-
-        hoveredDockIndex = -1;
-        int innerStart = dockX + dp(10);
-        for (int i = 0; i < items.length; i++) {
-            int slot = dp(DOCK_ICON_SLOT);
-            int sx = innerStart + i * slot;
-            int sy = dockY + (dockH - slot) / 2;
-            int sw = slot;
-            int sh = slot;
-            boolean hovered = mouseX >= sx && mouseX <= sx + sw && mouseY >= sy && mouseY <= sy + sh;
-            if (hovered) hoveredDockIndex = i;
-            if (hovered) {
-                int pad = dp(5);
-                HudCardRenderer.drawOverlayCard(context, sx + pad, sy + pad, sw - pad * 2, sh - pad * 2,
-                        dp(9), MenuTheme.BG_CARD_HOVER, 0.70f * eased);
-            }
-            int iconColor = hovered
-                    ? MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased)
-                    : MenuTheme.withAlpha(MenuTheme.TEXT_SECONDARY | 0xFF000000, 0.85f * eased);
-            drawDockIcon(context, items[i], sx + sw / 2, sy + sh / 2, iconColor);
+    private void drawChevronLeft(DrawContext ctx, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = color & 0x00FFFFFF | 0xFF000000;
+        int thick = Math.max(1, size / 8);
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        int reach = size / 3;
+        // Two AA pills forming the chevron's V (rotated approximation via stepped tiny pills).
+        for (int i = 0; i <= reach; i++) {
+            float fade = alpha * (1.0f - i * 0.025f);
+            HudCardRenderer.drawOverlayCard(ctx, cx - i, cy - (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
+            HudCardRenderer.drawOverlayCard(ctx, cx - i, cy + (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
         }
     }
 
-    // ---------- Side panel ----------
-
-    private void advanceSidePanel(SidePanelState p) {
-        float target = p.target != null ? 1.0f : 0.0f;
-        p.slide += (target - p.slide) * MenuTheme.SIDE_SLIDE_LERP;
-    }
-
-    private void renderSidePanel(DrawContext context, int mouseX, int mouseY, float eased, SidePanelState p) {
-        if (p.target == null && p.slide < 0.02f) return;
-        if (p.target == null) {
-            // Fading out — still render with current slide.
-        }
-        float sideEased = easeOutCubic(Math.max(0.0f, Math.min(1.0f, p.slide))) * eased;
-        if (sideEased < 0.02f) return;
-
-        int sw = dp(SIDE_PANEL_W);
-        int rowH = dp(SIDE_ROW_H);
-        int padBottom = dp(14);
-        int titleArea = dp(46);
-        int desiredH = titleArea + Math.max(1, p.entries.size()) * rowH + padBottom;
-        int maxH = (int) (height * 0.78);
-        p.height = Math.min(desiredH, maxH);
-
-        int wx = windowX();
-        int ww = windowW();
-        int gap = dp(14);
-        int slideOffset = (int) ((1.0f - sideEased) * dp(14));
-        int sx;
-        if (p.side == Side.RIGHT) {
-            sx = wx + ww + gap + slideOffset;
-            if (sx + sw > width - dp(8)) sx = width - sw - dp(8);
-        } else {
-            sx = wx - sw - gap - slideOffset;
-            if (sx < dp(8)) sx = dp(8);
-        }
-        int targetY = (p.target != null ? p.target.y : p.lastY) + (p.target != null ? p.target.height : p.lastH) / 2 - p.height / 2;
-        targetY = Math.max(windowY(), Math.min(windowY() + windowH() - p.height, targetY));
-        targetY = Math.max(dp(12), Math.min(height - p.height - dp(12), targetY));
-        int sy = targetY;
-        p.x = sx; p.y = sy; p.width = sw;
-        if (p.target != null) { p.lastY = p.target.y; p.lastH = p.target.height; }
-
-        sideSettings.radius = dp(SIDE_PANEL_RADIUS);
-        sideSettings.opacity = 0.95f * sideEased;
-        HudCardRenderer.drawCard(context, sx, sy, sw, p.height, sideSettings);
-        HudCardRenderer.drawOverlayCard(context, sx, sy, sw, dp(58), dp(SIDE_PANEL_RADIUS),
-                MenuTheme.PURPLE_DEEP, 0.50f * sideEased);
-        HudCardRenderer.drawOverlayCard(context, sx, sy, sw, p.height, dp(SIDE_PANEL_RADIUS),
-                MenuTheme.BG_PANEL, 0.22f * sideEased);
-        HudCardRenderer.drawShaderOutline(context, sx, sy, sw, p.height, dp(SIDE_PANEL_RADIUS),
-                0.55f, 0.30f * sideEased);
-
-        FeatureEntry titleSrc = p.target != null ? p.target : null;
-        String title = titleSrc != null ? titleSrc.name : "";
-        String status = titleSrc != null ? (titleSrc.enabled.get() ? "Enabled" : "Disabled") : "";
-        int titleX = sx + dp(16);
-        drawScaledText(context, title, titleX, sy + dp(14), TEXT_SETTING_TITLE,
-                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, sideEased));
-        int statusColor = (titleSrc != null && titleSrc.enabled.get())
-                ? MenuTheme.ACCENT_BRIGHT
-                : (MenuTheme.TEXT_MUTED | 0xFF000000);
-        drawScaledText(context, status, titleX, sy + dp(28), TEXT_SETTING_STATUS,
-                MenuTheme.withAlpha(statusColor, 0.95f * sideEased));
-
-        // separator
-        context.fill(sx + dp(14), sy + titleArea - dp(4), sx + sw - dp(14), sy + titleArea - dp(3),
-                MenuTheme.withAlpha(MenuTheme.BORDER_SUBTLE | 0xFF000000, 0.6f * sideEased));
-
-        int rowsTop = sy + titleArea;
-        int rowsBot = sy + p.height - padBottom;
-        int listH = rowsBot - rowsTop;
-        int contentH = p.entries.size() * rowH;
-        int maxScroll = Math.max(0, contentH - listH);
-        if (p.scroll > maxScroll) p.scroll = maxScroll;
-        p.hoveredEntry = null;
-
-        context.enableScissor(sx + dp(4), rowsTop, sx + sw - dp(4), rowsBot);
-        for (int i = 0; i < p.entries.size(); i++) {
-            SettingEntry e = p.entries.get(i);
-            int rowY = rowsTop + i * rowH - p.scroll;
-            e.x = sx + dp(14);
-            e.y = rowY;
-            e.width = sw - dp(28);
-            e.height = rowH - dp(4);
-            boolean rowVisible = rowY + rowH > rowsTop && rowY < rowsBot;
-            if (e.input != null) {
-                e.input.setX(sx + sw - dp(58));
-                e.input.setY(rowY + (rowH - dp(11)) / 2);
-                e.input.setWidth(dp(44));
-                e.input.setHeight(dp(11));
-                e.input.visible = rowVisible;
-            }
-            if (!rowVisible) continue;
-            boolean rowHovered = mouseX >= e.x && mouseX <= e.x + e.width
-                    && mouseY >= rowY && mouseY <= rowY + e.height;
-            if (rowHovered) p.hoveredEntry = e;
-
-            String label = humanize(e.field.getName());
-            int labelY = rowY + (rowH - textHeight(TEXT_SETTING_LABEL)) / 2;
-            drawScaledText(context, label, e.x, labelY, TEXT_SETTING_LABEL,
-                    MenuTheme.withAlpha(MenuTheme.TEXT_SECONDARY | 0xFF000000, 0.92f * sideEased));
-
-            Class<?> type = e.field.getType();
-            if (type == boolean.class) {
-                boolean v = readBoolean(p.target.config, e.field);
-                e.knobProgress += ((v ? 1.0f : 0.0f) - e.knobProgress) * MenuTheme.KNOB_LERP;
-                int tw = dp(24);
-                int th = dp(12);
-                int tx = sx + sw - dp(14) - tw;
-                int ty = rowY + (rowH - th) / 2;
-                drawAnimatedToggle(context, tx, ty, tw, th, e.knobProgress, sideEased);
-            } else if (isColorField(e.field)) {
-                int sxColor = sx + sw - dp(34);
-                int syColor = rowY + (rowH - dp(12)) / 2;
-                int swatch = readColor(p.target.config, e.field);
-                context.fill(sxColor - 1, syColor - 1, sxColor + dp(20) + 1, syColor + dp(12) + 1,
-                        MenuTheme.withAlpha(MenuTheme.BG_DEEP, sideEased));
-                context.fill(sxColor, syColor, sxColor + dp(20), syColor + dp(12),
-                        0xFF000000 | (swatch & 0x00FFFFFF));
-            }
-        }
-        context.disableScissor();
-
-        if (maxScroll > 0) {
-            int trackX = sx + sw - dp(3);
-            int trackTop = rowsTop;
-            int trackBot = rowsBot;
-            int trackH = trackBot - trackTop;
-            int thumbH = Math.max(dp(14), (int) ((float) listH / contentH * trackH));
-            int thumbY = trackTop + (int) ((float) p.scroll / maxScroll * (trackH - thumbH));
-            context.fill(trackX, trackTop, trackX + dp(2), trackBot,
-                    MenuTheme.withAlpha(MenuTheme.BG_CARD, 0.50f * sideEased));
-            context.fill(trackX, thumbY, trackX + dp(2), thumbY + thumbH,
-                    MenuTheme.withAlpha(MenuTheme.ACCENT, 0.55f * sideEased));
+    private void drawChevronRight(DrawContext ctx, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = color & 0x00FFFFFF | 0xFF000000;
+        int thick = Math.max(1, size / 8);
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        int reach = size / 3;
+        for (int i = 0; i <= reach; i++) {
+            float fade = alpha * (1.0f - i * 0.025f);
+            HudCardRenderer.drawOverlayCard(ctx, cx + i, cy - (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
+            HudCardRenderer.drawOverlayCard(ctx, cx + i, cy + (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
         }
     }
 
-    private void positionSidePanelInputs(SidePanelState p) {
-        // Layout occurs in renderSidePanel; nothing to do here unless target was just removed.
-        if (p.target == null) {
-            for (SettingEntry e : p.entries) {
-                if (e.input != null) e.input.visible = false;
+    /**
+     * Smooth (shader-AA) category icons. All shapes stay strictly inside the
+     * (x, y, size, size) bounding box so icons sit cleanly aligned with text.
+     */
+    private void drawCategoryIcon(DrawContext ctx, Category cat, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = color & 0x00FFFFFF | 0xFF000000;
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        switch (cat) {
+            case VISUALS -> {
+                // Eye: outlined oval + filled pupil.
+                int eyeH = Math.max(4, size * 3 / 5);
+                int eyeY = cy - eyeH / 2;
+                HudCardRenderer.drawShaderOutline(ctx, x, eyeY, size, eyeH, eyeH / 2.0f, 1.2f, alpha);
+                int pupil = Math.max(3, size / 3);
+                HudCardRenderer.drawOverlayCard(ctx, cx - pupil / 2, cy - pupil / 2,
+                        pupil, pupil, pupil / 2.0f, rgb, alpha);
+            }
+            case HUD -> {
+                // Rounded window with a header bar.
+                int radius = Math.max(2, size / 4);
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, radius, 1.2f, alpha);
+                int barH = Math.max(2, size / 5);
+                int barInset = Math.max(2, size / 6);
+                HudCardRenderer.drawOverlayCard(ctx, x + barInset, y + barInset,
+                        size - barInset * 2, barH, barH / 2.0f, rgb, alpha * 0.80f);
+            }
+            case UTILITIES -> {
+                // Three even sliders with offset knobs.
+                int line = Math.max(2, size / 6);
+                int totalSpace = size - line * 3;
+                int gap = Math.max(1, totalSpace / 2);
+                int knob = Math.max(3, line + 2);
+                int[] knobPos = { size / 3, size * 2 / 3, size / 2 };
+                for (int i = 0; i < 3; i++) {
+                    int yy = y + i * (line + gap);
+                    HudCardRenderer.drawOverlayCard(ctx, x, yy, size, line, line / 2.0f, rgb, alpha * 0.65f);
+                    int kx = x + knobPos[i] - knob / 2;
+                    int ky = yy + line / 2 - knob / 2;
+                    // Clamp knob fully inside icon bounds.
+                    kx = Math.max(x, Math.min(x + size - knob, kx));
+                    ky = Math.max(y, Math.min(y + size - knob, ky));
+                    HudCardRenderer.drawOverlayCard(ctx, kx, ky, knob, knob, knob / 2.0f, rgb, alpha);
+                }
+            }
+            case PVP -> {
+                // Crosshair: outlined ring + 4 tick marks + center dot.
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, size / 2.0f, 1.2f, alpha);
+                int tick = Math.max(2, size / 5);
+                int tw = Math.max(1, size / 8);
+                // Top, bottom, left, right ticks inside the ring.
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y + 1,                  tw, tick, tw / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y + size - tick - 1,    tw, tick, tw / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + 1,                cy - tw / 2,   tick, tw, tw / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - tick - 1,  cy - tw / 2,   tick, tw, tw / 2.0f, rgb, alpha);
+                int dot = Math.max(2, size / 5);
+                HudCardRenderer.drawOverlayCard(ctx, cx - dot / 2, cy - dot / 2,
+                        dot, dot, dot / 2.0f, rgb, alpha);
+            }
+            case MENU -> {
+                // Gear: outer ring, four square teeth inset toward the edges, central hub.
+                int ringInset = Math.max(1, size / 10);
+                HudCardRenderer.drawShaderOutline(ctx, x + ringInset, y + ringInset,
+                        size - ringInset * 2, size - ringInset * 2,
+                        (size - ringInset * 2) / 2.0f, 1.4f, alpha);
+                int tooth = Math.max(2, size / 5);
+                int tw = Math.max(2, size / 5);
+                // Vertical teeth top + bottom
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y,
+                        tw, tooth, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y + size - tooth,
+                        tw, tooth, 0.5f, rgb, alpha);
+                // Horizontal teeth left + right
+                HudCardRenderer.drawOverlayCard(ctx, x,                cy - tw / 2,
+                        tooth, tw, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - tooth, cy - tw / 2,
+                        tooth, tw, 0.5f, rgb, alpha);
+                int hub = Math.max(3, size / 4);
+                HudCardRenderer.drawOverlayCard(ctx, cx - hub / 2, cy - hub / 2,
+                        hub, hub, hub / 2.0f, rgb, alpha);
             }
         }
     }
 
-    // ---------- Mouse / interaction ----------
+    // ---------- Mouse ----------
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
-        int button = click.button();
-        double mx = click.x();
-        double my = click.y();
-
-        if (searchField != null && searchField.mouseClicked(click, doubled)) return true;
         if (super.mouseClicked(click, doubled)) return true;
+        if (click.button() != 0) return false;
 
-        // Dock buttons.
-        if (hoveredDockIndex >= 0) {
-            DockItem item = DockItem.values()[hoveredDockIndex];
-            handleDockClick(item);
+        // Header `<` closes the screen.
+        if (hoveredBack) { this.close(); return true; }
+
+        // Detail back chevron.
+        if (detailTarget != null && hoveredDetailBack) {
+            detailTarget = null;
+            detailSettings.clear();
             return true;
         }
 
-        // Top tabs.
+        // Sidebar category change resets drill-down.
         if (hoveredCategoryIndex >= 0) {
-            List<Category> visible = visibleCategories();
-            selectedCategory = visible.get(hoveredCategoryIndex);
-            if (searchField != null) searchField.setText("");
-            searchQuery = "";
-            scroll = 0;
-            closePanel(leftPanel);
-            closePanel(rightPanel);
-            playToggleSound();
+            Category cat = Category.values()[hoveredCategoryIndex];
+            if (cat != selected) {
+                selected = cat;
+                detailTarget = null;
+                detailSettings.clear();
+                contentScroll = 0;
+            }
             return true;
         }
 
-        // Feature cards.
-        if (hoveredFeature != null) {
-            if (button == 0) {
-                if (hoveredOverToggle) {
-                    hoveredFeature.enabledSetter.accept(!hoveredFeature.enabled.get());
-                    playToggleSound();
-                    saveAndReload();
-                } else {
-                    // LMB outside the toggle hitbox should not toggle (per spec).
-                }
+        // Detail: enabled toggle.
+        if (detailTarget != null) {
+            FeatureEntry t = detailTarget;
+            if (insideRect(click.x(), click.y(), t.detailSwitchX, t.detailSwitchY, t.detailSwitchW, t.detailSwitchH, dp(3))) {
+                t.enabledSetter.accept(!t.enabled.get());
+                saveAndReload();
                 return true;
             }
-            if (button == 1) {
-                Side side = sideFor(hoveredFeature);
-                SidePanelState panel = panels.get(side);
-                if (panel.target == hoveredFeature) {
-                    closePanel(panel);
-                } else {
-                    openPanel(panel, hoveredFeature);
-                }
-                playHoverSound();
-                return true;
-            }
-        }
-
-        // Click inside an open side panel (toggle / color swatch).
-        for (SidePanelState p : panels.values()) {
-            if (p.target == null) continue;
-            if (!isInsideSidePanel(p, mx, my)) continue;
-            SettingEntry e = settingAt(p, mx, my);
-            if (e != null && button == 0) {
-                if (e.field.getType() == boolean.class) {
-                    writeBoolean(p.target.config, e.field, !readBoolean(p.target.config, e.field));
-                    playToggleSound();
+            if (hoveredSettingRow != null) {
+                SettingRow r = hoveredSettingRow;
+                if (r.field.getType() == boolean.class
+                        && insideRect(click.x(), click.y(), r.switchX, r.switchY, r.switchW, r.switchH, dp(3))) {
+                    writeBool(t.config, r.field, !readBool(t.config, r.field));
                     saveAndReload();
                     return true;
                 }
             }
-            return true; // click landed in panel; consume
+            return true; // consume clicks inside detail page
         }
 
-        // Click elsewhere — close both panels.
-        closePanel(leftPanel);
-        closePanel(rightPanel);
+        // List view: switch toggles, row body opens detail.
+        if (hoveredRow != null) {
+            if (hoveredOnSwitch) {
+                hoveredRow.enabledSetter.accept(!hoveredRow.enabled.get());
+                saveAndReload();
+                return true;
+            } else {
+                openDetail(hoveredRow);
+                return true;
+            }
+        }
         return false;
     }
 
-    private boolean isInsideSidePanel(SidePanelState p, double mx, double my) {
-        return mx >= p.x && mx <= p.x + p.width && my >= p.y && my <= p.y + p.height;
+    private void openDetail(FeatureEntry f) {
+        detailTarget = f;
+        rebuildDetailSettings(f);
     }
 
-    private SettingEntry settingAt(SidePanelState p, double mx, double my) {
-        for (SettingEntry e : p.entries) {
-            if (mx >= e.x && mx <= e.x + e.width && my >= e.y && my <= e.y + e.height) return e;
-        }
-        return null;
-    }
-
-    private Side sideFor(FeatureEntry f) {
-        int gridMid = gridX() + gridW() / 2;
-        return f.x + f.width / 2 < gridMid ? Side.LEFT : Side.RIGHT;
-    }
-
-    private void openPanel(SidePanelState p, FeatureEntry target) {
-        closePanel(p);
-        p.target = target;
-        p.slide = 0.0f;
-        p.scroll = 0;
-        p.lastY = target.y;
-        p.lastH = target.height;
-        rebuildPanelSettings(p);
-    }
-
-    private void closePanel(SidePanelState p) {
-        for (SettingEntry e : p.entries) {
-            if (e.input != null) remove(e.input);
-        }
-        p.entries.clear();
-        p.target = null;
-        p.slide = 0.0f;
-    }
-
-    private void rebuildPanelSettings(SidePanelState p) {
-        if (p.target == null || p.target.config == null) return;
-        for (Field field : p.target.config.getClass().getFields()) {
-            if (Modifier.isStatic(field.getModifiers()) || !isEditable(field)) continue;
-            TextFieldWidget input = null;
-            Class<?> type = field.getType();
-            if (type != boolean.class && !isColorField(field)) {
-                input = new TextFieldWidget(textRenderer, 0, 0, 50, 11, Text.literal(field.getName()));
-                input.setDrawsBackground(false);
-                input.setEditableColor(MenuTheme.TEXT_PRIMARY);
-                input.setMaxLength(48);
-                input.setText(readFieldAsText(p.target.config, field));
-                final Object cfg = p.target.config;
-                final Field f = field;
-                input.setChangedListener(v -> writeFieldFromText(cfg, f, v));
-                addDrawableChild(input);
-            }
-            p.entries.add(new SettingEntry(field, input));
-        }
-    }
-
-    private void handleDockClick(DockItem item) {
-        switch (item) {
-            case SETTINGS -> { /* no-op: visual anchor */ }
-            case THEME -> { /* future: theme switcher */ }
-            case KEYBINDS -> { if (client != null) client.setScreen(new MultiKeyBindingsScreen(this)); }
-            case PROFILES -> { if (client != null) client.setScreen(new MarkersScreen()); }
-            case CONFIG -> Util.getOperatingSystem().open(VibeVisualsConfigManager.getConfigPath().toFile());
+    private void rebuildDetailSettings(FeatureEntry f) {
+        detailSettings.clear();
+        if (f == null || f.config == null) return;
+        for (Field field : f.config.getClass().getFields()) {
+            if (Modifier.isStatic(field.getModifiers())) continue;
+            if (!isEditable(field)) continue;
+            // Skip the "enabled" boolean — represented by the top toggle.
+            if (field.getName().equalsIgnoreCase("enabled")) continue;
+            detailSettings.add(new SettingRow(field));
         }
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        for (SidePanelState p : panels.values()) {
-            if (p.target != null && isInsideSidePanel(p, mouseX, mouseY)) {
-                p.scroll = Math.max(0, p.scroll - (int) Math.round(verticalAmount * 16.0));
-                return true;
-            }
-        }
-        if (mouseX >= gridX() && mouseX <= gridX() + gridW()
-                && mouseY >= gridY() && mouseY <= gridY() + gridH()) {
-            scroll = Math.max(0, Math.min(maxScroll, scroll - (int) Math.round(verticalAmount * 18.0)));
+        // Scroll the content area when in list view.
+        int pw = panelW();
+        int ph = panelH();
+        int px = (width - pw) / 2;
+        int py = (height - ph) / 2;
+        int cx = px + dp(SIDEBAR_W);
+        int cy = py + dp(HEADER_H);
+        if (detailTarget == null
+                && mouseX >= cx && mouseX <= px + pw
+                && mouseY >= cy && mouseY <= py + ph) {
+            contentScroll = Math.max(0, Math.min(contentMaxScroll,
+                    contentScroll - (int) Math.round(verticalAmount * 18.0)));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -933,36 +820,18 @@ public class VibeVisualsMenuScreen extends Screen {
         return t == int.class || t == float.class || t == boolean.class || t == String.class
                 || t == HudCardRenderType.class;
     }
-
-    private static boolean isColorField(Field f) {
-        return f.getType() == int.class && f.getName().toLowerCase(Locale.ROOT).contains("color");
-    }
-
-    private static int readColor(Object cfg, Field f) {
-        try { return f.getInt(cfg); } catch (IllegalAccessException e) { return 0xFFFFFFFF; }
-    }
-    private static boolean readBoolean(Object cfg, Field f) {
+    private static boolean readBool(Object cfg, Field f) {
         try { return f.getBoolean(cfg); } catch (IllegalAccessException e) { return false; }
     }
-    private static void writeBoolean(Object cfg, Field f, boolean v) {
+    private static void writeBool(Object cfg, Field f, boolean v) {
         try { f.setBoolean(cfg, v); } catch (IllegalAccessException ignored) {}
     }
-    private static String readFieldAsText(Object cfg, Field f) {
-        try { Object v = f.get(cfg); return v == null ? "" : v.toString(); }
-        catch (IllegalAccessException e) { return ""; }
-    }
-    private static void writeFieldFromText(Object cfg, Field f, String v) {
+    private static String fieldToString(Object cfg, Field f) {
         try {
-            Class<?> t = f.getType();
-            if (t == int.class) f.setInt(cfg, Integer.parseInt(v.trim()));
-            else if (t == float.class) f.setFloat(cfg, Float.parseFloat(v.trim()));
-            else if (t == boolean.class) f.setBoolean(cfg, Boolean.parseBoolean(v.trim()));
-            else if (t == HudCardRenderType.class) f.set(cfg, HudCardRenderType.valueOf(v.trim().toUpperCase(Locale.ROOT)));
-            else if (t == String.class) f.set(cfg, v);
-            saveAndReload();
-        } catch (IllegalArgumentException | IllegalAccessException ignored) {}
+            Object v = f.get(cfg);
+            return v == null ? "" : v.toString();
+        } catch (IllegalAccessException e) { return ""; }
     }
-
     private static void saveAndReload() {
         VibeVisualsConfigManager.get().validate();
         VibeVisualsConfigManager.save();
@@ -979,106 +848,103 @@ public class VibeVisualsMenuScreen extends Screen {
         return b.toString();
     }
 
-    private static float easeOutCubic(float t) {
-        float p = 1.0f - t;
-        return 1.0f - p * p * p;
+    private static boolean insideRect(double x, double y, int rx, int ry, int rw, int rh, int pad) {
+        return x >= rx - pad && x <= rx + rw + pad && y >= ry - pad && y <= ry + rh + pad;
     }
 
-    private void playHoverSound() {
+    // ---------- Glass + blur ----------
+
+    private void renderDim(DrawContext context, float eased) {
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        boolean blur = VibeVisualsConfigManager.get().menu.liquidGlassBlur;
+        // Light theme keeps the world very visible; dark theme is dim but not pitch.
+        int baseAlpha = blur ? (light ? 0x0E : 0x54) : (light ? 0x30 : 0x88);
+        int alpha = (int) (baseAlpha * eased) & 0xFF;
+        int rgb = MenuTheme.DIM_RGB & 0x00FFFFFF;
+        context.fill(0, 0, width, height, (alpha << 24) | rgb);
+    }
+
+    private void applyMenuBlur(DrawContext context) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        mc.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK.value(), 1.18f, 0.05f));
-    }
-    private void playToggleSound() {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        mc.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK.value(), 1.25f, 0.16f));
-    }
-
-    // ---------- Vector glyphs ----------
-
-    private void drawPulseLogo(DrawContext context, int x, int y, int size, int color) {
-        // Stylised ECG pulse, scales with `size`.
-        int s = Math.max(8, size);
-        int unit = Math.max(1, s / 10);
-        int baseY = y + s / 2;
-        // baseline
-        context.fill(x, baseY, x + 2 * unit, baseY + unit, color);
-        // up spike
-        context.fill(x + 2 * unit, baseY - 3 * unit, x + 3 * unit, baseY + unit, color);
-        // tall peak
-        context.fill(x + 3 * unit, baseY - 5 * unit, x + 4 * unit, baseY + 2 * unit, color);
-        // down spike
-        context.fill(x + 4 * unit, baseY + unit, x + 5 * unit, baseY + 3 * unit, color);
-        // recovery
-        context.fill(x + 5 * unit, baseY, x + 7 * unit, baseY + unit, color);
-        // tail
-        context.fill(x + 7 * unit, baseY, x + s, baseY + unit, color);
+        try {
+            if (mc != null && mc.gameRenderer != null) {
+                mc.gameRenderer.renderBlur();
+                return;
+            }
+        } catch (Throwable ignored) {}
+        try { this.applyBlur(context); } catch (Throwable ignored) {}
     }
 
-    private void drawMagnifier(DrawContext context, int x, int y, int color) {
-        // 8x8 circle outline + handle
-        int u = Math.max(1, dp(1));
-        context.fill(x + u, y, x + 5 * u, y + u, color);
-        context.fill(x, y + u, x + u, y + 5 * u, color);
-        context.fill(x + 5 * u, y + u, x + 6 * u, y + 5 * u, color);
-        context.fill(x + u, y + 5 * u, x + 5 * u, y + 6 * u, color);
-        context.fill(x + 5 * u, y + 5 * u, x + 7 * u, y + 7 * u, color);
+    private void drawLiquidGlass(DrawContext ctx, int x, int y, int w, int h,
+                                  int radius, int material, float materialOpacity, float eased) {
+        if (w <= 0 || h <= 0) return;
+        HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, radius, material, materialOpacity * eased);
+        HudCardRenderer.drawShaderOutline(ctx, x, y, w, h, radius, 0.55f,
+                MenuTheme.GLASS_OUTLINE_ALPHA * eased);
     }
 
-    private void drawDockIcon(DrawContext context, DockItem item, int cx, int cy, int color) {
-        int u = Math.max(1, dp(1.4f));
-        switch (item) {
-            case SETTINGS -> {
-                // gear-ish: small plus + corner dots
-                context.fill(cx - u, cy - 3 * u, cx + u, cy + 3 * u, color);
-                context.fill(cx - 3 * u, cy - u, cx + 3 * u, cy + u, color);
-                context.fill(cx - 3 * u, cy - 3 * u, cx - 2 * u, cy - 2 * u, color);
-                context.fill(cx + 2 * u, cy + 2 * u, cx + 3 * u, cy + 3 * u, color);
-                context.fill(cx - 3 * u, cy + 2 * u, cx - 2 * u, cy + 3 * u, color);
-                context.fill(cx + 2 * u, cy - 3 * u, cx + 3 * u, cy - 2 * u, color);
-            }
-            case THEME -> {
-                // window-ish: outlined square with header bar
-                context.fill(cx - 4 * u, cy - 3 * u, cx + 4 * u, cy - 2 * u, color);
-                context.fill(cx - 4 * u, cy - 3 * u, cx - 3 * u, cy + 3 * u, color);
-                context.fill(cx + 3 * u, cy - 3 * u, cx + 4 * u, cy + 3 * u, color);
-                context.fill(cx - 4 * u, cy + 2 * u, cx + 4 * u, cy + 3 * u, color);
-            }
-            case KEYBINDS -> {
-                context.fill(cx - 4 * u, cy - 2 * u, cx + 4 * u, cy + 2 * u, color);
-                for (int i = -3; i <= 3; i += 2) {
-                    context.fill(cx + i * u, cy - u, cx + (i + 1) * u, cy, color);
-                    context.fill(cx + i * u, cy + u, cx + (i + 1) * u, cy + 2 * u, color);
-                }
-            }
-            case PROFILES -> {
-                // person glyph
-                context.fill(cx - u, cy - 3 * u, cx + u, cy - u, color);
-                context.fill(cx - 3 * u, cy, cx + 3 * u, cy + 3 * u, color);
-            }
-            case CONFIG -> {
-                // folder
-                context.fill(cx - 4 * u, cy - 2 * u, cx, cy - u, color);
-                context.fill(cx - 4 * u, cy - u, cx + 4 * u, cy + 3 * u, color);
-            }
-        }
+    // ---------- Scale + text helpers ----------
+
+    private float dpScale() {
+        MinecraftClient mc = client != null ? client : MinecraftClient.getInstance();
+        if (mc == null) return 1.0f;
+        float fbW = mc.getWindow().getWidth();
+        float fbH = mc.getWindow().getHeight();
+        float layoutScale = Math.min(fbW / REFERENCE_WIDTH, fbH / REFERENCE_HEIGHT);
+        double guiScale = mc.getWindow().getScaleFactor();
+        if (guiScale <= 0.0) guiScale = 1.0;
+        return Math.max((float) (layoutScale / guiScale), 0.45f);
     }
 
-    // ---------- Inner types ----------
+    private int dp(float v) { return Math.round(v * dpScale()); }
+    private int panelW() { return Math.min(dp(PANEL_W), width - dp(40)); }
+    private int panelH() { return Math.min(dp(PANEL_H), height - dp(40)); }
 
-    private enum Category {
-        VISUALS("Visuals"),
-        HUD("HUD"),
-        UTILITIES("Utilities"),
-        PVP("PvP"),
-        MENU("Menu");
+    private float textScale(float pxSize) { return dpScale() * (pxSize / FONT_NATIVE_PX); }
+    private int textWidth(String text, float pxSize) {
+        return Math.round(textRenderer.getWidth(text) * textScale(pxSize));
+    }
+    private int textHeight(float pxSize) {
+        // Inter cap height ≈ 0.73 of em. Returning a value close to cap height
+        // (not the full em box) makes (rowH - textHeight) / 2 give a visually
+        // centred result instead of one biased toward the top.
+        return Math.round(pxSize * 0.72f * dpScale());
+    }
+
+    private void drawScaledText(DrawContext ctx, String text, int x, int y, float pxSize, int color) {
+        float scale = textScale(pxSize);
+        ctx.getMatrices().pushMatrix();
+        ctx.getMatrices().translate((float) x, (float) y);
+        ctx.getMatrices().scale(scale, scale);
+        ctx.drawText(textRenderer,
+                Text.literal(text).styled(s -> s.withFont(MENU_FONT)),
+                0, 0, color, false);
+        ctx.getMatrices().popMatrix();
+    }
+
+    private static float easeOutCubic(float t) { float p = 1.0f - t; return 1.0f - p * p * p; }
+
+    // ---------- Types ----------
+
+    private enum Section {
+        MODULES("MODULES"),
+        SYSTEM("SYSTEM");
 
         final String label;
-        Category(String label) { this.label = label; }
+        Section(String label) { this.label = label; }
     }
 
-    private enum Side { LEFT, RIGHT }
+    private enum Category {
+        VISUALS  ("Visuals",   Section.MODULES),
+        HUD      ("HUD",       Section.MODULES),
+        UTILITIES("Utilities", Section.MODULES),
+        PVP      ("PvP",       Section.MODULES),
+        MENU     ("Menu",      Section.SYSTEM);
 
-    private enum DockItem { SETTINGS, THEME, KEYBINDS, PROFILES, CONFIG }
+        final String label;
+        final Section section;
+        Category(String label, Section section) { this.label = label; this.section = section; }
+    }
 
     private static class FeatureEntry {
         final Category category;
@@ -1087,10 +953,11 @@ public class VibeVisualsMenuScreen extends Screen {
         final Consumer<Boolean> enabledSetter;
         final Object config;
         float hoverProgress;
-        float knobProgress;
-        boolean hoveredLastFrame;
+        float knobAnim;
+        float detailKnobAnim;
         int x, y, width, height;
-        int toggleX, toggleY, toggleWidth, toggleHeight;
+        int switchX, switchY, switchWidth, switchHeight;
+        int detailSwitchX, detailSwitchY, detailSwitchW, detailSwitchH;
 
         FeatureEntry(Category category, String name, Supplier<Boolean> enabled,
                      Consumer<Boolean> enabledSetter, Object config) {
@@ -1102,28 +969,12 @@ public class VibeVisualsMenuScreen extends Screen {
         }
     }
 
-    private static class SettingEntry {
+    private static class SettingRow {
         final Field field;
-        final TextFieldWidget input;
-        float knobProgress;
+        float knobAnim;
         int x, y, width, height;
+        int switchX, switchY, switchW, switchH;
 
-        SettingEntry(Field field, TextFieldWidget input) {
-            this.field = field;
-            this.input = input;
-        }
-    }
-
-    private static class SidePanelState {
-        final Side side;
-        final List<SettingEntry> entries = new ArrayList<>();
-        FeatureEntry target;
-        float slide;
-        int scroll;
-        int x, y, width, height;
-        int lastY, lastH;
-        SettingEntry hoveredEntry;
-
-        SidePanelState(Side side) { this.side = side; }
+        SettingRow(Field field) { this.field = field; }
     }
 }
