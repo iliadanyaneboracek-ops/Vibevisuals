@@ -40,6 +40,13 @@ public final class HealingHelperRenderer {
         if (client.player == null) {
             return;
         }
+        // Creative / spectator never need health or hunger — suppress the helper entirely.
+        if (client.interactionManager == null
+                || client.interactionManager.getCurrentGameMode() == null
+                || client.interactionManager.getCurrentGameMode().isCreative()
+                || client.player.isSpectator()) {
+            return;
+        }
 
         PlayerInventory inventory = client.player.getInventory();
         int slots = PlayerInventory.getHotbarSize();
@@ -47,6 +54,18 @@ public final class HealingHelperRenderer {
         int foodLevel = client.player.getHungerManager().getFoodLevel();
         boolean hungerFull = foodLevel >= MAX_FOOD_LEVEL;
         boolean healthFull = client.player.getHealth() >= client.player.getMaxHealth();
+
+        // Skip the helper unless there is at least one true healing item
+        // (golden apple, enchanted golden apple, or instant-health potion) in
+        // the hotbar. Carrots alone aren't enough — they restore hunger only,
+        // and a stand-alone carrot highlight is just noise for the user.
+        boolean hasHealing =
+                findFirstSlot(inventory, slots, matcherFor(Target.HEALING_POTION)) >= 0
+             || findFirstSlot(inventory, slots, matcherFor(Target.GOLDEN_APPLE)) >= 0
+             || findFirstSlot(inventory, slots, matcherFor(Target.ENCHANTED_GOLDEN_APPLE)) >= 0;
+        if (!hasHealing) {
+            return;
+        }
 
         List<Target> order = new ArrayList<>(4);
         if (!hungerFull) {
