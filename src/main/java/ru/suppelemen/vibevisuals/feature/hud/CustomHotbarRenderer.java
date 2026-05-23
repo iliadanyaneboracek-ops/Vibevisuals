@@ -58,12 +58,20 @@ public final class CustomHotbarRenderer {
         for (int slot = 0; slot < slots; slot++) {
             int slotX = x + config.padding + slot * (config.slotSize + config.slotGap);
             HudCardRenderer.drawOverlayCard(context, slotX, slotY, config.slotSize, config.slotSize, 4.0f, config.slotColor, config.slotOpacity);
+        }
 
+        HealingHelperRenderer.render(context, x + config.padding, slotY, config.slotSize + config.slotGap, config.slotSize);
+
+        for (int slot = 0; slot < slots; slot++) {
+            int slotX = x + config.padding + slot * (config.slotSize + config.slotGap);
             ItemStack stack = inventory.getStack(slot);
             if (!stack.isEmpty()) {
                 drawItem(context, client, stack, slotX, slotY, config.slotSize);
             }
         }
+
+        SlotTimersRenderer.render(context, x + config.padding, slotY, config.slotSize + config.slotGap, config.slotSize);
+
         context.getMatrices().popMatrix();
     }
 

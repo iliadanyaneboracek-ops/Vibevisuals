@@ -42,6 +42,8 @@ public class VibeVisualsConfig {
     public AutoPotionConfig autoPotion = AutoPotionConfig.defaults();
     public AutoRespawnConfig autoRespawn = AutoRespawnConfig.defaults();
     public TapeMouseConfig tapeMouse = TapeMouseConfig.defaults();
+    public HealingHelperConfig healingHelper = HealingHelperConfig.defaults();
+    public SlotTimersConfig slotTimers = SlotTimersConfig.defaults();
     public MultiKeyBindingsConfig multiKeyBindings = MultiKeyBindingsConfig.defaults();
 
     public void validate() {
@@ -131,6 +133,14 @@ public class VibeVisualsConfig {
             tapeMouse = TapeMouseConfig.defaults();
         }
 
+        if (healingHelper == null) {
+            healingHelper = HealingHelperConfig.defaults();
+        }
+
+        if (slotTimers == null) {
+            slotTimers = SlotTimersConfig.defaults();
+        }
+
         if (menu == null) {
             menu = MenuConfig.defaults();
         }
@@ -166,6 +176,8 @@ public class VibeVisualsConfig {
         autoPotion.validate();
         autoRespawn.validate();
         tapeMouse.validate();
+        healingHelper.validate();
+        slotTimers.validate();
         menu.validate();
         multiKeyBindings.validate();
         hudScale = clamp(hudScale, 0.25f, 3.0f);
@@ -967,6 +979,58 @@ public class VibeVisualsConfig {
 
         public void validate() {
             clickDelayTicks = Math.max(1, Math.min(200, clickDelayTicks));
+        }
+    }
+
+    public static class SlotTimersConfig {
+        public boolean enabled = true;
+        public int textColor = 0xFFFF4D4D;
+        public int urgentColor = 0xFFFFD24D;
+        public float urgentThresholdSeconds = 1.0f;
+        public boolean showShadow = true;
+        public boolean showSubsecond = true;
+        public float textScale = 0.7f;
+        public int xOffset = 0;
+        public int yOffset = 0;
+
+        public static SlotTimersConfig defaults() {
+            return new SlotTimersConfig();
+        }
+
+        public void validate() {
+            textScale = clamp(textScale, 0.25f, 2.0f);
+            urgentThresholdSeconds = clamp(urgentThresholdSeconds, 0.0f, 10.0f);
+            xOffset = Math.max(-16, Math.min(16, xOffset));
+            yOffset = Math.max(-16, Math.min(16, yOffset));
+        }
+    }
+
+    public static class HealingHelperConfig {
+        public boolean enabled = true;
+        public int currentColor = 0xFF5CE38B;
+        public int nextColor = 0xFFFFFFFF;
+        public float currentOpacity = 0.70f;
+        public float currentFillOpacity = 0.28f;
+        public float nextOpacity = 0.22f;
+        public float nextFillOpacity = 0.08f;
+        public float outlineThickness = 1.2f;
+        public float pulseSpeed = 1.0f;
+        public float pulseAmplitude = 0.25f;
+        public int padding = 0;
+
+        public static HealingHelperConfig defaults() {
+            return new HealingHelperConfig();
+        }
+
+        public void validate() {
+            currentOpacity = clamp(currentOpacity, 0.0f, 1.0f);
+            currentFillOpacity = clamp(currentFillOpacity, 0.0f, 1.0f);
+            nextOpacity = clamp(nextOpacity, 0.0f, 1.0f);
+            nextFillOpacity = clamp(nextFillOpacity, 0.0f, 1.0f);
+            outlineThickness = clamp(outlineThickness, 0.0f, 4.0f);
+            pulseSpeed = clamp(pulseSpeed, 0.0f, 4.0f);
+            pulseAmplitude = clamp(pulseAmplitude, 0.0f, 1.0f);
+            padding = Math.max(-4, Math.min(6, padding));
         }
     }
 
