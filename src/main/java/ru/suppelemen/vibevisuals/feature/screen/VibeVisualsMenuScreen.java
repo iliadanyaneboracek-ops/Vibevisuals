@@ -138,6 +138,8 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.HUD, "Inventory HUD",  () -> c.inventoryHud.enabled,   v -> c.inventoryHud.enabled = v, c.inventoryHud));
         features.add(new FeatureEntry(Category.HUD, "Armor HUD",      () -> c.armorHud.enabled,       v -> c.armorHud.enabled = v, c.armorHud));
         features.add(new FeatureEntry(Category.HUD, "Custom Hotbar",  () -> c.hotbar.enabled,         v -> c.hotbar.enabled = v, c.hotbar));
+        features.add(new FeatureEntry(Category.HUD, "Healing Helper", () -> c.healingHelper.enabled,  v -> c.healingHelper.enabled = v, c.healingHelper));
+        features.add(new FeatureEntry(Category.HUD, "Slot Timers",    () -> c.slotTimers.enabled,     v -> c.slotTimers.enabled = v, c.slotTimers));
         features.add(new FeatureEntry(Category.PVP, "PvP Combat",     () -> c.pvpCard.enabled,        v -> c.pvpCard.enabled = v, c.pvpCard));
         features.add(new FeatureEntry(Category.PVP, "Target ESP",     () -> c.targetEsp.enabled,      v -> c.targetEsp.enabled = v, c.targetEsp));
         features.add(new FeatureEntry(Category.PVP, "Saturation",     () -> c.saturationDisplay.enabled, v -> c.saturationDisplay.enabled = v, c.saturationDisplay));

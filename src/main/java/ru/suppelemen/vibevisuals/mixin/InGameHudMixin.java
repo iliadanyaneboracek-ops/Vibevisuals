@@ -12,7 +12,9 @@ import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.feature.hud.CustomCrosshairRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.CustomHotbarRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.FireOverlayRenderer;
+import ru.suppelemen.vibevisuals.feature.hud.HealingHelperRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.SaturationDisplayRenderer;
+import ru.suppelemen.vibevisuals.feature.hud.SlotTimersRenderer;
 import net.minecraft.entity.player.PlayerEntity;
 
 @Mixin(InGameHud.class)
@@ -25,6 +27,14 @@ public class InGameHudMixin {
             CustomHotbarRenderer.render(context);
             ci.cancel();
         }
+    }
+
+    @Inject(method = "renderHotbar", at = @At("TAIL"))
+    private void vibevisuals$renderHotbarOverlays(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+        int barX = context.getScaledWindowWidth() / 2 - 91;
+        int barY = context.getScaledWindowHeight() - 22;
+        HealingHelperRenderer.render(context, barX + 1, barY + 1, 20, 18);
+        SlotTimersRenderer.render(context, barX + 3, barY + 3, 20, 16);
     }
 
     @Inject(method = "renderStatusEffectOverlay", at = @At("HEAD"), cancellable = true)

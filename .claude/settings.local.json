@@ -12,7 +12,9 @@
       "Bash(unzip -o \"/c/Users/iliad/Vibevisuals/.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-2fecd3eaee/1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.1-v2/minecraft-merged-2fecd3eaee-1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.1-v2.jar\" \"net/minecraft/client/gui/screen/GameMenuScreen.class\")",
       "Bash(javap -c -p net/minecraft/client/gui/screen/GameMenuScreen)",
       "Bash(unzip -o \"/c/Users/iliad/Vibevisuals/.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-2fecd3eaee/1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.1-v2/minecraft-merged-2fecd3eaee-1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.1-v2.jar\" \"net/minecraft/text/TranslatableTextContent.class\")",
-      "Bash(javap -public net/minecraft/text/TranslatableTextContent)"
+      "Bash(javap -public net/minecraft/text/TranslatableTextContent)",
+      "Bash(./gradlew compileJava --console=plain --quiet)",
+      "Bash(./gradlew compileJava --console=plain)"
     ]
   }
 }
