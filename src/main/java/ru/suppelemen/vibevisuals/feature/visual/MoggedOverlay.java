@@ -71,6 +71,13 @@ public final class MoggedOverlay {
         MinecraftClient client = MinecraftClient.getInstance();
         Camera camera = client.gameRenderer.getCamera();
         Vec3d cameraPos = camera.getCameraPos();
+        // Per-frame tick interpolation — without this the banner snaps at 20 TPS
+        // because getLerpedPos(1.0) returns the end-of-tick position.
+        float tickProgress = 1.0f;
+        try {
+            tickProgress = client.getRenderTickCounter().getTickProgress(true);
+        } catch (Throwable ignored) {
+        }
         long now = System.currentTimeMillis();
         Iterator<Mogged> it = ACTIVE.iterator();
         while (it.hasNext()) {
@@ -79,14 +86,14 @@ public final class MoggedOverlay {
                 ACTIVE.remove(m);
                 continue;
             }
-            renderBanner(context, client, camera, cameraPos, m, config);
+            renderBanner(context, client, camera, cameraPos, m, tickProgress, config);
         }
     }
 
     private static void renderBanner(WorldRenderContext context, MinecraftClient client,
                                       Camera camera, Vec3d cameraPos, Mogged m,
-                                      VibeVisualsConfig.MoggedConfig config) {
-        Vec3d lerped = m.target.getLerpedPos(1.0f);
+                                      float tickProgress, VibeVisualsConfig.MoggedConfig config) {
+        Vec3d lerped = m.target.getLerpedPos(tickProgress);
         // Eye height + small lift = banner sits right by the opponent's face.
         Vec3d worldPos = lerped.add(0.0, m.target.getStandingEyeHeight() + 0.35, 0.0);
 
