@@ -39,8 +39,6 @@ public final class MoggedOverlay {
     /** Called whenever the local player attacks another player. */
     public static void onHit(PlayerEntity target) {
         VibeVisualsConfig.MoggedConfig config = VibeVisualsConfigManager.get().mogged;
-        System.out.println("[vibevisuals.mogged] onHit fired (enabled=" + config.enabled
-                + ", target=" + (target == null ? "null" : target.getName().getString()) + ")");
         if (!config.enabled || target == null) {
             return;
         }
@@ -50,7 +48,6 @@ public final class MoggedOverlay {
         long expiresAt = now + totalMs;
         ACTIVE.removeIf(m -> m.target == target);
         ACTIVE.add(new Mogged(target, now, expiresAt, totalMs));
-        System.out.println("[vibevisuals.mogged] added to ACTIVE (size=" + ACTIVE.size() + ")");
 
         if (config.playSound) {
             CustomHitSoundPlayer.playSoundFile(config.soundFile, config.volume);
