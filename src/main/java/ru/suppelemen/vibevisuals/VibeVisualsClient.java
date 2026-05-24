@@ -68,17 +68,6 @@ public class VibeVisualsClient implements ClientModInitializer {
                 }
         );
 
-        HudElementRegistry.addLast(
-                Identifier.of(MOD_ID, "mogged_overlay"),
-                (DrawContext context, RenderTickCounter tickCounter) -> {
-                    MinecraftClient client = MinecraftClient.getInstance();
-                    if (client.currentScreen != null && !(client.currentScreen instanceof ChatScreen)) {
-                        return;
-                    }
-                    MoggedOverlay.render(context, tickCounter);
-                }
-        );
-
         System.out.println("[vibevisuals] Fresh baseline initialized");
     }
 
@@ -171,6 +160,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         WorldRenderEvents.AFTER_ENTITIES.register(ProjectilePrediction::render);
         WorldRenderEvents.AFTER_ENTITIES.register(TargetEsp::render);
         WorldRenderEvents.AFTER_ENTITIES.register(MarkerManager::render);
+        WorldRenderEvents.AFTER_ENTITIES.register(MoggedOverlay::render);
     }
 
     private static boolean isCriticalHit(PlayerEntity player) {
