@@ -35,6 +35,8 @@ public final class MoggedOverlay {
     /** Called whenever the local player attacks another player. */
     public static void onHit(PlayerEntity target) {
         VibeVisualsConfig.MoggedConfig config = VibeVisualsConfigManager.get().mogged;
+        System.out.println("[vibevisuals.mogged] onHit fired (enabled=" + config.enabled
+                + ", target=" + (target == null ? "null" : target.getName().getString()) + ")");
         if (!config.enabled || target == null) {
             return;
         }
@@ -42,6 +44,7 @@ public final class MoggedOverlay {
         long expiresAt = System.currentTimeMillis() + Math.round(config.displayDurationSeconds * 1000.0f);
         ACTIVE.removeIf(m -> m.target == target);
         ACTIVE.add(new Mogged(target, expiresAt));
+        System.out.println("[vibevisuals.mogged] added to ACTIVE (size=" + ACTIVE.size() + ")");
 
         if (config.playSound) {
             CustomHitSoundPlayer.playSoundFile(config.soundFile, config.volume);
@@ -73,14 +76,17 @@ public final class MoggedOverlay {
                 ACTIVE.remove(m);
                 continue;
             }
-            // Position 0.85 above the head, slightly above the player's nametag.
-            Vec3d worldPos = m.target.getLerpedPos(tickCounter.getTickProgress(true))
-                    .add(0.0, m.target.getHeight() + 0.85, 0.0);
-            ScreenPoint sp = worldToScreen(camera, worldPos,
-                    client.getWindow().getScaledWidth(), client.getWindow().getScaledHeight());
-            if (sp == null) continue;
-
-            drawBanner(ctx, client, sp.x, sp.y, config.bannerScale);
+            // Eye-level position of the target so the banner anchors near their face.
+            Vec3d lerped = m.target.getLerpedPos(tickCounter.getTickProgress(true));
+            Vec3d worldPos = lerped.add(0.0, m.target.getStandingEyeHeight() + 0.35, 0.0);
+            int scaledW = client.getWindow().getScaledWidth();
+            int scaledH = client.getWindow().getScaledHeight();
+            ScreenPoint sp = worldToScreen(camera, worldPos, scaledW, scaledH);
+            // Fallback: if projection failed (target behind camera, etc.), draw centred so the
+            // user still sees the banner.  Better than silently rendering nothing.
+            int cx = sp == null ? scaledW / 2 : sp.x;
+            int cy = sp == null ? scaledH / 2 : sp.y;
+            drawBanner(ctx, client, cx, cy, config.bannerScale);
         }
     }
 
