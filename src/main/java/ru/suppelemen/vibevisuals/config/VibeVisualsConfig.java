@@ -1000,10 +1000,10 @@ public class VibeVisualsConfig {
     public static class MoggedConfig {
         public boolean enabled = false;          // off by default — it's a joke feature
         public float displayDurationSeconds = 1.4f;
-        public float bannerScale = 1.0f;         // size multiplier for the world banner
+        public float bannerScale = 2.0f;         // size multiplier for the world banner
         public boolean playSound = true;
+        public String soundFile = "mogged.wav";  // dropped into <config>/vibevisuals/sounds/
         public float volume = 1.0f;
-        public float pitch = 1.0f;
 
         public static MoggedConfig defaults() {
             return new MoggedConfig();
@@ -1011,9 +1011,11 @@ public class VibeVisualsConfig {
 
         public void validate() {
             displayDurationSeconds = clamp(displayDurationSeconds, 0.2f, 6.0f);
-            bannerScale = clamp(bannerScale, 0.4f, 3.0f);
+            bannerScale = clamp(bannerScale, 0.4f, 6.0f);
             volume = clamp(volume, 0.0f, 2.0f);
-            pitch = clamp(pitch, 0.5f, 2.0f);
+            if (soundFile == null || soundFile.isBlank()) {
+                soundFile = "mogged.wav";
+            }
         }
     }
 

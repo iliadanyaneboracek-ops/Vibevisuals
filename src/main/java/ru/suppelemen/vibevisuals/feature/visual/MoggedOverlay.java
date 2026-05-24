@@ -5,16 +5,15 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
+import ru.suppelemen.vibevisuals.feature.sound.CustomHitSoundPlayer;
 
 import java.util.Iterator;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -22,8 +21,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * Joke feature: whenever the local player hits another player, drop a bold
  * red <strong>MOGGED</strong> banner above the target's head and play a
- * meme-style impact sound. The banner stays for a short configurable
- * duration and is rendered as billboarded text in world space.
+ * user-supplied meme sound from the vibevisuals sounds dir.
+ *
+ * Banner rendering mirrors vanilla's nametag pipeline (translate -> billboard
+ * rotation -> negative-Y scale).  Sound is loaded as a plain .wav file from
+ * the vibevisuals sounds dir via {@link CustomHitSoundPlayer#playSoundFile}.
  */
 public final class MoggedOverlay {
 
@@ -40,19 +42,12 @@ public final class MoggedOverlay {
         }
 
         long expiresAt = System.currentTimeMillis() + Math.round(config.displayDurationSeconds * 1000.0f);
-        // Replace any existing entry for the same target.
+        // Replace any existing entry for the same target so the timer restarts.
         ACTIVE.removeIf(m -> m.target == target);
         ACTIVE.add(new Mogged(target, expiresAt));
 
         if (config.playSound) {
-            try {
-                MinecraftClient client = MinecraftClient.getInstance();
-                client.getSoundManager().play(PositionedSoundInstance.master(
-                        SoundEvents.ENTITY_WARDEN_SONIC_BOOM,
-                        Math.max(0.5f, Math.min(2.0f, config.pitch)),
-                        Math.max(0.0f, Math.min(2.0f, config.volume))));
-            } catch (Throwable ignored) {
-            }
+            CustomHitSoundPlayer.playSoundFile(config.soundFile, config.volume);
         }
     }
 
@@ -86,7 +81,6 @@ public final class MoggedOverlay {
                                       Camera camera, Vec3d cameraPos, Mogged m,
                                       VibeVisualsConfig.MoggedConfig config) {
         Vec3d lerped = m.target.getLerpedPos(1.0f);
-        // Place the banner a bit above the player's head / nametag.
         Vec3d pos = lerped.add(0.0, m.target.getHeight() + 0.85, 0.0);
 
         MatrixStack matrices = context.matrices();
@@ -96,14 +90,20 @@ public final class MoggedOverlay {
                 (float) (pos.y - cameraPos.y),
                 (float) (pos.z - cameraPos.z));
         matrices.multiply(camera.getRotation());
-        // 0.025 is the standard nametag world scale in vanilla; negate X/Y so text faces the camera.
+        // 0.025 is the vanilla nametag world scale.
         float s = 0.025f * Math.max(0.4f, config.bannerScale);
         matrices.scale(-s, -s, s);
 
-        Text text = Text.literal("MOGGED").styled(style -> style.withBold(true));
-        int textWidth = tr.getWidth(text);
-        float x = -textWidth / 2.0f;
-        float y = -tr.fontHeight / 2.0f;
+        String label = "MOGGED";
+        int textWidth = tr.getWidth(label);
+        int textHeight = tr.fontHeight;
+        // Padded plate around the glyphs.
+        int padX = 6;
+        int padY = 3;
+        float bgLeft = -textWidth / 2.0f - padX;
+        float bgRight = textWidth / 2.0f + padX;
+        float bgTop = -padY;
+        float bgBottom = textHeight + padY;
 
         Matrix4f matrix = matrices.peek().getPositionMatrix();
         VertexConsumerProvider consumers = context.consumers();
@@ -112,13 +112,19 @@ public final class MoggedOverlay {
             return;
         }
 
-        // The TextRenderer.draw overload that takes a backgroundColor paints a
-        // single colored rect behind the glyphs — perfect for the meme banner.
-        int textColor = 0xFFFF1F1F;        // bright red glyphs
-        int backgroundColor = 0xFF000000;  // solid black plate
-        int fullBrightLight = 0xF000F0;
-        tr.draw(text, x, y, textColor, false, matrix, consumers,
-                TextRenderer.TextLayerType.SEE_THROUGH, backgroundColor, fullBrightLight);
+        int textColor = 0xFFFF1F1F;
+        int bgColor = 0xFF000000;
+        int fullBright = 0xF000F0;
+
+        // 1) Render text twice (vanilla nametag pattern): a low-alpha SEE_THROUGH pass
+        //    so the banner stays readable through walls, then a solid NORMAL pass on top.
+        Text text = Text.literal(label);
+        float textX = -textWidth / 2.0f;
+        // Background plate is supplied by passing a non-zero backgroundColor.
+        tr.draw(text, textX, 0, 0x60FF1F1F, false, matrix, consumers,
+                TextRenderer.TextLayerType.SEE_THROUGH, bgColor, fullBright);
+        tr.draw(text, textX, 0, textColor, false, matrix, consumers,
+                TextRenderer.TextLayerType.NORMAL, 0, fullBright);
 
         matrices.pop();
     }
