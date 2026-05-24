@@ -17,9 +17,6 @@ import ru.suppelemen.vibevisuals.theme.MenuTheme;
  */
 public final class HudGlass {
 
-    /** Outer ring opacity for HUD surfaces. Slightly stronger than the menu so they read on busy worlds. */
-    public static final float OUTLINE_ALPHA = 0.28f;
-
     private HudGlass() {
     }
 
@@ -31,9 +28,9 @@ public final class HudGlass {
     public static void drawPanel(DrawContext ctx, int x, int y, int w, int h, int radius, float opacityMultiplier) {
         if (w <= 0 || h <= 0) return;
         float op = clamp01(MenuTheme.MATERIAL_OPACITY_PANEL * opacityMultiplier);
+        // Material tint only — the shader outline produced a fuzzy double-line at HUD-card sizes,
+        // so we rely on the material edge for definition.
         HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, radius, MenuTheme.MATERIAL_PANEL, op);
-        HudCardRenderer.drawShaderOutline(ctx, x, y, w, h, radius, 0.55f,
-                OUTLINE_ALPHA * opacityMultiplier);
     }
 
     /** Lighter inline chip / pill — for rows inside a panel. */
@@ -50,8 +47,17 @@ public final class HudGlass {
                 : MenuTheme.MATERIAL_OPACITY_CARD;
         float op = clamp01(baseOp * opacityMultiplier);
         HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, radius, material, op);
-        HudCardRenderer.drawShaderOutline(ctx, x, y, w, h, radius, 0.55f,
-                (OUTLINE_ALPHA * 0.6f) * opacityMultiplier);
+    }
+
+    /**
+     * Compact "app icon" — small rounded square in the theme accent, used as
+     * the title icon for HUD cards. Replaces the old per-element pixel art.
+     */
+    public static void drawAccentTile(DrawContext ctx, int x, int y, int size) {
+        if (size <= 0) return;
+        int radius = Math.max(2, size / 4);
+        HudCardRenderer.drawOverlayCard(ctx, x, y, size, size, radius,
+                MenuTheme.ACCENT_BRIGHT, 0.92f);
     }
 
     /** Theme-aware primary text colour (white in dark, dark navy in light). */
