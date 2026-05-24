@@ -3,12 +3,10 @@ package ru.suppelemen.vibevisuals.core.hud;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
-import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
-import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
+import ru.suppelemen.vibevisuals.util.render.HudGlass;
 
 public abstract class HudCardElement extends HudElement {
     protected final VibeVisualsConfig.CardConfig cardConfig;
-    protected final HudVisualSettings visualSettings = new HudVisualSettings();
 
     protected HudCardElement(String id, String displayName, VibeVisualsConfig.CardConfig cardConfig) {
         super(id, displayName, cardConfig.x, cardConfig.y, cardConfig.width, cardConfig.height);
@@ -38,7 +36,7 @@ public abstract class HudCardElement extends HudElement {
         int ix = (int) Math.round(x);
         int iy = (int) Math.round(y);
 
-        HudCardRenderer.drawCard(context, ix, iy, width, height, visualSettings);
+        HudGlass.drawPanel(context, ix, iy, width, height, Math.round(cardConfig.radius));
         renderContent(context, client, tickDelta, ix, iy);
 
         if (editorMode) {
@@ -78,11 +76,5 @@ public abstract class HudCardElement extends HudElement {
         y = cardConfig.y;
         width = cardConfig.width;
         height = cardConfig.height;
-
-        visualSettings.renderType = cardConfig.renderType;
-        visualSettings.radius = cardConfig.radius;
-        visualSettings.opacity = cardConfig.opacity;
-        visualSettings.glow = cardConfig.glow;
-        visualSettings.blur = cardConfig.blur;
     }
 }

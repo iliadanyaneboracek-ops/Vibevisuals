@@ -8,9 +8,8 @@ import net.minecraft.item.Items;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudElement;
-import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
-import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
-import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
+import ru.suppelemen.vibevisuals.theme.MenuTheme;
+import ru.suppelemen.vibevisuals.util.render.HudGlass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +29,6 @@ public class ArmorHudElement extends HudElement {
     );
 
     private final VibeVisualsConfig.ArmorHudConfig config;
-    private final HudVisualSettings visualSettings = new HudVisualSettings();
 
     public ArmorHudElement() {
         super("armor_hud", "Armor HUD", 0, 0, 0, 0);
@@ -57,7 +55,7 @@ public class ArmorHudElement extends HudElement {
 
         int ix = (int) Math.round(x);
         int iy = (int) Math.round(y);
-        HudCardRenderer.drawCard(context, ix, iy, width, height, visualSettings);
+        HudGlass.drawPanel(context, ix, iy, width, height, Math.round(config.radius));
 
         int iconX = ix + config.padding;
         int iconY = iy + Math.max(0, (height - config.iconSize) / 2) + config.iconYOffset;
@@ -99,11 +97,6 @@ public class ArmorHudElement extends HudElement {
         y = config.y;
         width = config.width;
         height = config.height;
-        visualSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        visualSettings.radius = config.radius;
-        visualSettings.opacity = config.opacity;
-        visualSettings.glow = false;
-        visualSettings.blur = false;
     }
 
     private static List<ItemStack> getVisibleArmor(MinecraftClient client, boolean editorMode) {
@@ -142,7 +135,11 @@ public class ArmorHudElement extends HudElement {
 
         float durability = 1.0f - (float) stack.getDamage() / maxDamage;
         durability = Math.max(0.0f, Math.min(1.0f, durability));
-        context.fill(x, y, x + width, y + height, config.durabilityBackgroundColor);
-        context.fill(x, y, x + Math.round(width * durability), y + height, config.durabilityColor);
+        // Theme-aware track + accent fill.
+        context.fill(x, y, x + width, y + height, MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.18f));
+        int fill = Math.round(width * durability);
+        int color = durability > 0.5f ? MenuTheme.ACCENT_BRIGHT
+                : (durability > 0.25f ? 0xFFFFA63D : 0xFFFF4D4D);
+        context.fill(x, y, x + fill, y + height, MenuTheme.withAlpha(color, 0.92f));
     }
 }

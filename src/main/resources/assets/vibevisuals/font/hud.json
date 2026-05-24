@@ -2,9 +2,9 @@
   "providers": [
     {
       "type": "ttf",
-      "file": "vibevisuals:noto_sans_telugu.ttf",
+      "file": "vibevisuals:inter.ttf",
       "size": 20.0,
-      "oversample": 4.0,
+      "oversample": 8.0,
       "shift": [
         0.0,
         0.0

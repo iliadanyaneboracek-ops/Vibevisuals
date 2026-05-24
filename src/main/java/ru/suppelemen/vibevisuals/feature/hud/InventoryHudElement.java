@@ -8,9 +8,7 @@ import net.minecraft.item.Items;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudElement;
-import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
-import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
-import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
+import ru.suppelemen.vibevisuals.util.render.HudGlass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +27,6 @@ public class InventoryHudElement extends HudElement {
     );
 
     private final VibeVisualsConfig.InventoryHudConfig config;
-    private final HudVisualSettings visualSettings = new HudVisualSettings();
 
     public InventoryHudElement() {
         super("inventory_hud", "Inventory HUD", 0, 0, 0, 0);
@@ -51,7 +48,7 @@ public class InventoryHudElement extends HudElement {
 
         int ix = getX();
         int iy = getY();
-        HudCardRenderer.drawCard(context, ix, iy, width, height, visualSettings);
+        HudGlass.drawPanel(context, ix, iy, width, height, Math.round(config.radius));
 
         int slot = 0;
         for (ItemStack stack : stacks) {
@@ -59,7 +56,7 @@ public class InventoryHudElement extends HudElement {
             int row = slot / config.columns;
             int slotX = ix + config.padding + column * (config.slotSize + config.slotGap);
             int slotY = iy + config.padding + row * (config.slotSize + config.slotGap);
-            HudCardRenderer.drawOverlayCard(context, slotX, slotY, config.slotSize, config.slotSize, 4.0f, config.slotColor, config.slotOpacity);
+            HudGlass.drawChip(context, slotX, slotY, config.slotSize, config.slotSize, 4);
             if (!stack.isEmpty()) {
                 drawItem(context, client, stack, slotX, slotY);
             }
@@ -83,11 +80,6 @@ public class InventoryHudElement extends HudElement {
         enabled = config.enabled;
         x = config.x;
         y = config.y;
-        visualSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        visualSettings.radius = config.radius;
-        visualSettings.opacity = config.opacity;
-        visualSettings.glow = false;
-        visualSettings.blur = false;
     }
 
     private void updateSize(int slots) {

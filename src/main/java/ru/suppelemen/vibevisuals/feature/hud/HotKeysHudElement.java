@@ -2,7 +2,6 @@ package ru.suppelemen.vibevisuals.feature.hud;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.text.StyleSpriteSource;
 import net.minecraft.text.Text;
@@ -11,9 +10,9 @@ import ru.suppelemen.vibevisuals.VibeVisualsClient;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudElement;
-import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
-import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
+import ru.suppelemen.vibevisuals.theme.MenuTheme;
 import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
+import ru.suppelemen.vibevisuals.util.render.HudGlass;
 
 import java.util.List;
 
@@ -21,7 +20,6 @@ public class HotKeysHudElement extends HudElement {
     private static final StyleSpriteSource HUD_FONT = new StyleSpriteSource.Font(Identifier.of(VibeVisualsClient.MOD_ID, "hud"));
 
     private final VibeVisualsConfig.HotKeysConfig config;
-    private final HudVisualSettings visualSettings = new HudVisualSettings();
 
     public HotKeysHudElement() {
         super("hot_keys", "Hot Keys", 0, 0, 0, 0);
@@ -31,15 +29,13 @@ public class HotKeysHudElement extends HudElement {
     @Override
     public void render(DrawContext context, MinecraftClient client, float tickDelta, boolean editorMode) {
         syncFromConfig();
-
-        if (!enabled) {
-            return;
-        }
+        if (!enabled) return;
 
         int ix = (int) Math.round(x);
         int iy = (int) Math.round(y);
-        HudCardRenderer.drawCard(context, ix, iy, width, height, visualSettings);
-        drawTitleBar(context, ix, iy);
+        int radius = Math.round(config.radius);
+
+        HudGlass.drawPanel(context, ix, iy, width, height, radius);
 
         int iconX = ix + config.padding + config.iconXOffset;
         int titleCenterY = iy + config.titleY + Math.max(config.iconSize, scaledTextHeight(config.titleTextScale)) / 2;
@@ -47,15 +43,14 @@ public class HotKeysHudElement extends HudElement {
         int titleY = titleCenterY - scaledTextHeight(config.titleTextScale) / 2 + config.titleTextYOffset;
 
         drawKeyboardIcon(context, iconX, iconY, config.iconSize);
-        drawScaledText(
-                context,
-                client,
-                hudText("Hot Keys", true),
-                ix + config.padding + config.iconSize + 5 + config.titleTextXOffset,
-                titleY,
-                config.titleColor,
-                config.titleTextScale
-        );
+        drawScaledText(context, client, hudText("Hot Keys", false),
+                ix + config.padding + config.iconSize + 6 + config.titleTextXOffset,
+                titleY, HudGlass.textPrimary(), config.titleTextScale);
+
+        // Subtle separator under the title.
+        int sepY = titleY + scaledTextHeight(config.titleTextScale) + 3;
+        context.fill(ix + config.padding, sepY, ix + width - config.padding, sepY + 1,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.10f));
 
         List<HotKeyEntry> entries = getEntries();
         int rowHeight = scaledTextHeight(config.rowTextScale);
@@ -63,18 +58,21 @@ public class HotKeysHudElement extends HudElement {
         for (int index = 0; index < entries.size(); index++) {
             HotKeyEntry entry = entries.get(index);
             int entryY = rowY + index * (rowHeight + config.rowGap);
-            drawScaledText(context, client, hudText(entry.label(), true), ix + config.padding, entryY, config.actionColor, config.rowTextScale);
+            drawScaledText(context, client, hudText(entry.label(), false),
+                    ix + config.padding, entryY, HudGlass.textSecondary(), config.rowTextScale);
 
             Text keyText = hudText(entry.key(), true);
-            drawScaledText(
-                    context,
-                    client,
-                    keyText,
-                    ix + width - config.padding - scaledTextWidth(client, keyText, config.rowTextScale) + config.keyTextXOffset,
+            int keyW = scaledTextWidth(client, keyText, config.rowTextScale);
+            // Pill behind the key binding.
+            int chipPad = 4;
+            int chipH = rowHeight + 4;
+            int chipX = ix + width - config.padding - keyW - chipPad * 2;
+            int chipY = entryY - 2;
+            HudGlass.drawChip(context, chipX, chipY, keyW + chipPad * 2, chipH, chipH / 2);
+            drawScaledText(context, client, keyText,
+                    chipX + chipPad,
                     entryY + config.keyTextYOffset,
-                    config.keyColor,
-                    config.rowTextScale
-            );
+                    HudGlass.textPrimary(), config.rowTextScale);
         }
 
         if (editorMode) {
@@ -103,48 +101,25 @@ public class HotKeysHudElement extends HudElement {
                     + config.bottomPadding;
             height = Math.max(height, contentHeight);
         }
-        visualSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        visualSettings.radius = config.radius;
-        visualSettings.opacity = config.opacity;
-        visualSettings.glow = false;
-        visualSettings.blur = false;
-    }
-
-    private void drawTitleBar(DrawContext context, int x, int y) {
-        int barHeight = Math.min(config.titleBarHeight, height);
-        if (barHeight <= 0 || config.titleBarOpacity <= 0.0f) {
-            return;
-        }
-
-        context.enableScissor(x, y, x + width, y + barHeight);
-        HudCardRenderer.drawOverlayCard(context, x, y, width, height, config.radius, config.titleBarColor, config.titleBarOpacity);
-        context.disableScissor();
     }
 
     private static void drawKeyboardIcon(DrawContext context, int x, int y, int size) {
-        if (size <= 0) {
-            return;
-        }
-
-        int color = 0xCC7C5CFF;
-        int glow = 0x557C5CFF;
-        context.fill(x, y + 1, x + size, y + size - 1, glow);
-        context.fill(x + 1, y, x + size - 1, y + size, glow);
-        context.fill(x, y, x + size, y + 1, color);
-        context.fill(x, y + size - 1, x + size, y + size, color);
-        context.fill(x, y, x + 1, y + size, color);
-        context.fill(x + size - 1, y, x + size, y + size, color);
-
-        int keyColor = 0xDD9D8CFF;
-        int keySize = Math.max(1, size / 5);
-        int gap = Math.max(1, size / 6);
+        if (size <= 0) return;
+        // Rounded accent square with a small key grid — matches the menu icon style.
+        int radius = Math.max(2, size / 4);
+        HudCardRenderer.drawOverlayCard(context, x, y, size, size, radius,
+                MenuTheme.ACCENT_BRIGHT, 0.95f);
+        int keySize = Math.max(1, size / 6);
+        int gap = Math.max(1, size / 8);
         int startX = x + Math.max(2, size / 5);
         int startY = y + Math.max(2, size / 4);
+        int keyColor = 0xFFFFFFFF;
         for (int row = 0; row < 2; row++) {
-            for (int column = 0; column < 3; column++) {
-                int keyX = startX + column * (keySize + gap);
-                int keyY = startY + row * (keySize + gap);
-                context.fill(keyX, keyY, keyX + keySize, keyY + keySize, keyColor);
+            for (int col = 0; col < 3; col++) {
+                int kx = startX + col * (keySize + gap);
+                int ky = startY + row * (keySize + gap);
+                HudCardRenderer.drawOverlayCard(context, kx, ky, keySize, keySize,
+                        keySize / 2.0f, keyColor, 0.85f);
             }
         }
     }

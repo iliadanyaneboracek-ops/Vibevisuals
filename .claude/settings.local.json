@@ -14,7 +14,13 @@
       "Bash(unzip -o \"/c/Users/iliad/Vibevisuals/.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-2fecd3eaee/1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.1-v2/minecraft-merged-2fecd3eaee-1.21.11-net.fabricmc.yarn.1_21_11.1.21.11+build.1-v2.jar\" \"net/minecraft/text/TranslatableTextContent.class\")",
       "Bash(javap -public net/minecraft/text/TranslatableTextContent)",
       "Bash(./gradlew compileJava --console=plain --quiet)",
-      "Bash(./gradlew compileJava --console=plain)"
+      "Bash(./gradlew compileJava --console=plain)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(grep -rn \"TextRenderer\\\\b\\\\|TextLayerType\\\\|drawWithOutline\\\\|TEXT_BACKGROUND_COLOR\" ~/.gradle/loom-cache/source_mappings/*.tiny 2>/dev/null | grep -i \"textrenderer.*draw\\\\|textlayertype\" | head -20)",
+      "Bash(git fetch *)"
     ]
   }
 }
