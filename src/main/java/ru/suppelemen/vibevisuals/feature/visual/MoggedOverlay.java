@@ -45,9 +45,11 @@ public final class MoggedOverlay {
             return;
         }
 
-        long expiresAt = System.currentTimeMillis() + Math.round(config.displayDurationSeconds * 1000.0f);
+        long now = System.currentTimeMillis();
+        long totalMs = Math.round(config.displayDurationSeconds * 1000.0f);
+        long expiresAt = now + totalMs;
         ACTIVE.removeIf(m -> m.target == target);
-        ACTIVE.add(new Mogged(target, expiresAt));
+        ACTIVE.add(new Mogged(target, now, expiresAt, totalMs));
         System.out.println("[vibevisuals.mogged] added to ACTIVE (size=" + ACTIVE.size() + ")");
 
         if (config.playSound) {
@@ -93,18 +95,32 @@ public final class MoggedOverlay {
             return;
         }
 
+        // -- per-frame animation -------------------------------------------------
+        // The banner pops in over the first 120 ms, holds, and fades out over the
+        // last 300 ms. All math is cheap (a couple of float ops), so it runs at
+        // your framerate without any meaningful cost.
+        long now = System.currentTimeMillis();
+        float elapsed = (now - m.startedAt) / 1000.0f;
+        float remaining = (m.expiresAt - now) / 1000.0f;
+        float popIn = clamp(elapsed / 0.12f, 0.0f, 1.0f);
+        float fadeOut = clamp(remaining / 0.30f, 0.0f, 1.0f);
+        float alpha = popIn * fadeOut;
+        if (alpha <= 0.005f) {
+            return;
+        }
+        // Slight overshoot at spawn for a punchy "drop" feel.
+        float popScale = 0.85f + 0.25f * easeOutBack(popIn);
+        // -----------------------------------------------------------------------
+
         MatrixStack matrices = context.matrices();
         matrices.push();
         matrices.translate(
                 worldPos.x - cameraPos.x,
                 worldPos.y - cameraPos.y,
                 worldPos.z - cameraPos.z);
-        // Billboard toward camera (vanilla nametag rotation).
-        // Camera rotation is what billboards face — equivalent to the dispatcher rotation
-        // vanilla nametags use.
         matrices.multiply(camera.getRotation());
         // Crucial: ONLY Y is negated. Negating X too would back-face-cull the text quads.
-        float s = 0.025f * Math.max(0.4f, config.bannerScale);
+        float s = 0.025f * Math.max(0.4f, config.bannerScale) * popScale;
         matrices.scale(s, -s, s);
 
         TextRenderer tr = client.textRenderer;
@@ -112,14 +128,16 @@ public final class MoggedOverlay {
         int textWidth = tr.getWidth(text);
         Matrix4f matrix = matrices.peek().getPositionMatrix();
 
-        int textColor = 0xFFFF1F1F;          // bright red
-        int bgColor = 0xCC000000;            // 80% black plate
         int fullBright = 0xF000F0;
+        int alphaByte = Math.round(alpha * 255.0f) & 0xFF;
+        int textColor = (alphaByte << 24) | 0x00FF1F1F;
+        int textColorSeeThrough = (Math.round(alpha * 0x60) << 24) | 0x00FF1F1F;
+        int bgColor = (Math.round(alpha * 0xCC) << 24) | 0x00000000;
         float x = -textWidth / 2.0f;
         float y = -tr.fontHeight / 2.0f;
 
         // First pass: faint visible-through-walls version (vanilla nametag trick).
-        tr.draw(text, x, y, 0x60FF1F1F, false, matrix, consumers,
+        tr.draw(text, x, y, textColorSeeThrough, false, matrix, consumers,
                 TextRenderer.TextLayerType.SEE_THROUGH, bgColor, fullBright);
         // Second pass: solid front-facing version on top.
         tr.draw(text, x, y, textColor, false, matrix, consumers,
@@ -128,13 +146,29 @@ public final class MoggedOverlay {
         matrices.pop();
     }
 
+    private static float clamp(float v, float lo, float hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    /** Slight overshoot easing — gives the banner a snappy "pop" feel on spawn. */
+    private static float easeOutBack(float t) {
+        float c1 = 1.70158f;
+        float c3 = c1 + 1.0f;
+        float p = t - 1.0f;
+        return 1.0f + c3 * p * p * p + c1 * p * p;
+    }
+
     private static final class Mogged {
         final Entity target;
+        final long startedAt;
         final long expiresAt;
+        final long totalMs;
 
-        Mogged(Entity target, long expiresAt) {
+        Mogged(Entity target, long startedAt, long expiresAt, long totalMs) {
             this.target = target;
+            this.startedAt = startedAt;
             this.expiresAt = expiresAt;
+            this.totalMs = totalMs;
         }
     }
 }
