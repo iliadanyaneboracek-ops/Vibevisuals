@@ -1,16 +1,15 @@
 package ru.suppelemen.vibevisuals.feature.visual;
 
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
-import org.joml.Matrix4f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.feature.sound.CustomHitSoundPlayer;
@@ -19,13 +18,12 @@ import java.util.Iterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Joke feature: whenever the local player hits another player, drop a bold
- * red <strong>MOGGED</strong> banner above the target's head and play a
- * user-supplied meme sound from the vibevisuals sounds dir.
- *
- * Banner rendering mirrors vanilla's nametag pipeline (translate -> billboard
- * rotation -> negative-Y scale).  Sound is loaded as a plain .wav file from
- * the vibevisuals sounds dir via {@link CustomHitSoundPlayer#playSoundFile}.
+ * Drops a bold red <strong>MOGGED</strong> banner above any player you hit
+ * and plays a user-supplied .wav. Rendering happens in HUD space — we
+ * project the target's head from world coordinates to screen coordinates
+ * using the camera, then draw the banner directly with a DrawContext.  This
+ * avoids the matrix-stack quirks of world-space text and guarantees the
+ * banner shows up regardless of render layer pipeline state.
  */
 public final class MoggedOverlay {
 
@@ -42,7 +40,6 @@ public final class MoggedOverlay {
         }
 
         long expiresAt = System.currentTimeMillis() + Math.round(config.displayDurationSeconds * 1000.0f);
-        // Replace any existing entry for the same target so the timer restarts.
         ACTIVE.removeIf(m -> m.target == target);
         ACTIVE.add(new Mogged(target, expiresAt));
 
@@ -55,17 +52,20 @@ public final class MoggedOverlay {
         ACTIVE.clear();
     }
 
-    public static void render(WorldRenderContext context) {
+    /** HUD render — called from the main HUD element registry. */
+    public static void render(DrawContext ctx, RenderTickCounter tickCounter) {
         VibeVisualsConfig.MoggedConfig config = VibeVisualsConfigManager.get().mogged;
         if (!config.enabled || ACTIVE.isEmpty()) {
             return;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null || client.player == null) {
+            return;
+        }
         Camera camera = client.gameRenderer.getCamera();
-        Vec3d cameraPos = camera.getCameraPos();
-        long now = System.currentTimeMillis();
 
+        long now = System.currentTimeMillis();
         Iterator<Mogged> it = ACTIVE.iterator();
         while (it.hasNext()) {
             Mogged m = it.next();
@@ -73,61 +73,73 @@ public final class MoggedOverlay {
                 ACTIVE.remove(m);
                 continue;
             }
-            renderBanner(context, client.textRenderer, camera, cameraPos, m, config);
+            // Position 0.85 above the head, slightly above the player's nametag.
+            Vec3d worldPos = m.target.getLerpedPos(tickCounter.getTickProgress(true))
+                    .add(0.0, m.target.getHeight() + 0.85, 0.0);
+            ScreenPoint sp = worldToScreen(camera, worldPos,
+                    client.getWindow().getScaledWidth(), client.getWindow().getScaledHeight());
+            if (sp == null) continue;
+
+            drawBanner(ctx, client, sp.x, sp.y, config.bannerScale);
         }
     }
 
-    private static void renderBanner(WorldRenderContext context, TextRenderer tr,
-                                      Camera camera, Vec3d cameraPos, Mogged m,
-                                      VibeVisualsConfig.MoggedConfig config) {
-        Vec3d lerped = m.target.getLerpedPos(1.0f);
-        Vec3d pos = lerped.add(0.0, m.target.getHeight() + 0.85, 0.0);
+    private static void drawBanner(DrawContext ctx, MinecraftClient client,
+                                    int cx, int cy, float scale) {
+        Text text = Text.literal("MOGGED");
+        int textW = client.textRenderer.getWidth(text);
+        int textH = client.textRenderer.fontHeight;
 
-        MatrixStack matrices = context.matrices();
-        matrices.push();
-        matrices.translate(
-                (float) (pos.x - cameraPos.x),
-                (float) (pos.y - cameraPos.y),
-                (float) (pos.z - cameraPos.z));
-        matrices.multiply(camera.getRotation());
-        // 0.025 is the vanilla nametag world scale.
-        float s = 0.025f * Math.max(0.4f, config.bannerScale);
-        matrices.scale(-s, -s, s);
-
-        String label = "MOGGED";
-        int textWidth = tr.getWidth(label);
-        int textHeight = tr.fontHeight;
-        // Padded plate around the glyphs.
+        ctx.getMatrices().pushMatrix();
+        ctx.getMatrices().translate((float) cx, (float) cy);
+        ctx.getMatrices().scale(scale, scale);
+        // Pad-and-plate background.
         int padX = 6;
         int padY = 3;
-        float bgLeft = -textWidth / 2.0f - padX;
-        float bgRight = textWidth / 2.0f + padX;
-        float bgTop = -padY;
-        float bgBottom = textHeight + padY;
+        int bgX1 = -textW / 2 - padX;
+        int bgY1 = -textH / 2 - padY;
+        int bgX2 = textW / 2 + padX;
+        int bgY2 = textH / 2 + padY;
+        ctx.fill(bgX1, bgY1, bgX2, bgY2, 0xFF000000);
+        // Solid bright-red MOGGED label, centred on (0, 0).
+        ctx.drawText(client.textRenderer, text, -textW / 2, -textH / 2, 0xFFFF1F1F, false);
+        ctx.getMatrices().popMatrix();
+    }
 
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
-        VertexConsumerProvider consumers = context.consumers();
-        if (consumers == null) {
-            matrices.pop();
-            return;
+    /**
+     * Standard pinhole projection.  Returns null if the point is behind the
+     * camera or far outside the viewport.
+     */
+    private static ScreenPoint worldToScreen(Camera camera, Vec3d world, int scaledW, int scaledH) {
+        Vec3d rel = world.subtract(camera.getCameraPos());
+        // Camera rotation rotates world->view; invert it so we can transform a world point into view space.
+        Quaternionf viewRot = new Quaternionf(camera.getRotation()).conjugate();
+        Vector3f p = new Vector3f((float) rel.x, (float) rel.y, (float) rel.z);
+        viewRot.transform(p);
+        // In MC's view space the camera looks along +Z (after the conjugate).  Points in front have z > 0.
+        if (p.z <= 0.05f) {
+            return null;
         }
 
-        int textColor = 0xFFFF1F1F;
-        int bgColor = 0xFF000000;
-        int fullBright = 0xF000F0;
+        MinecraftClient client = MinecraftClient.getInstance();
+        double fov = client.options.getFov().getValue();
+        float aspect = (float) scaledW / Math.max(1, scaledH);
+        float tanHalfFov = (float) Math.tan(Math.toRadians(fov / 2.0));
 
-        // 1) Render text twice (vanilla nametag pattern): a low-alpha SEE_THROUGH pass
-        //    so the banner stays readable through walls, then a solid NORMAL pass on top.
-        Text text = Text.literal(label);
-        float textX = -textWidth / 2.0f;
-        // Background plate is supplied by passing a non-zero backgroundColor.
-        tr.draw(text, textX, 0, 0x60FF1F1F, false, matrix, consumers,
-                TextRenderer.TextLayerType.SEE_THROUGH, bgColor, fullBright);
-        tr.draw(text, textX, 0, textColor, false, matrix, consumers,
-                TextRenderer.TextLayerType.NORMAL, 0, fullBright);
+        // Standard pinhole projection to NDC (-1..1).
+        float ndcX = p.x / (p.z * tanHalfFov * aspect);
+        float ndcY = p.y / (p.z * tanHalfFov);
 
-        matrices.pop();
+        int sx = Math.round((ndcX + 1.0f) * 0.5f * scaledW);
+        int sy = Math.round((1.0f - ndcY) * 0.5f * scaledH);
+        // Skip points wildly off-screen but allow a margin so banners can fade at the edge.
+        if (sx < -scaledW || sx > scaledW * 2 || sy < -scaledH || sy > scaledH * 2) {
+            return null;
+        }
+        return new ScreenPoint(sx, sy);
     }
+
+    private record ScreenPoint(int x, int y) {}
 
     private static final class Mogged {
         final Entity target;
