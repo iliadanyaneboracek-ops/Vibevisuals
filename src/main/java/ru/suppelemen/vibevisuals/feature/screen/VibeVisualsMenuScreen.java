@@ -70,11 +70,12 @@ public class VibeVisualsMenuScreen extends Screen {
     private static final int BRAND_BOTTOM_GAP = 16;
 
     // Panel layout (design px).
-    private static final int PANEL_W = 624;
+    private static final int PANEL_W = 740;
     private static final int PANEL_H = 384;
     private static final int PANEL_RADIUS = 24;
     private static final int HEADER_H = 44;
     private static final int SIDEBAR_W = 168;
+    private static final int RIGHT_SIDEBAR_W = 140;
     private static final int SIDEBAR_ROW_H = 30;
     private static final int SIDEBAR_ROW_RADIUS = 8;
     private static final int SIDEBAR_PILL_PAD = 8;
@@ -113,6 +114,9 @@ public class VibeVisualsMenuScreen extends Screen {
     private float detailSlide;               // 0..1 — animates list↔detail transition
     private boolean hoveredDetailBack;
     private SettingRow hoveredSettingRow;
+
+    private Helper selectedHelper;           // currently-armed helper tab (right sidebar), null = none
+    private int hoveredHelperIndex = -1;
 
     private int contentScroll;
     private int contentMaxScroll;
@@ -197,6 +201,7 @@ public class VibeVisualsMenuScreen extends Screen {
 
         renderHeader(context, mouseX, mouseY, eased, px, py, pw);
         renderSidebar(context, mouseX, mouseY, eased, px, py, ph);
+        renderRightSidebar(context, mouseX, mouseY, eased, px, py, pw, ph);
         renderContent(context, mouseX, mouseY, eased, px, py, pw, ph);
 
         super.render(context, mouseX, mouseY, delta);
@@ -274,7 +279,8 @@ public class VibeVisualsMenuScreen extends Screen {
 
         int sepY = py + hH;
         int sepStartX = px + dp(SIDEBAR_W);
-        ctx.fill(sepStartX, sepY, px + pw, sepY + 1,
+        int sepEndX = px + pw - dp(RIGHT_SIDEBAR_W);
+        ctx.fill(sepStartX, sepY, sepEndX, sepY + 1,
                 MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SEPARATOR_ALPHA_HEADER * eased));
     }
 
@@ -353,13 +359,122 @@ public class VibeVisualsMenuScreen extends Screen {
                 MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SEPARATOR_ALPHA_SIDEBAR * eased));
     }
 
+    // ---------- Right sidebar (server helpers) ----------
+
+    private void renderRightSidebar(DrawContext ctx, int mx, int my, float eased,
+                                     int px, int py, int pw, int ph) {
+        int sbW = dp(RIGHT_SIDEBAR_W);
+        int sbX = px + pw - sbW;
+        int rowH = dp(SIDEBAR_ROW_H);
+        int sbY = py + dp(HEADER_H) + dp(10);
+        int pillInset = dp(SIDEBAR_PILL_PAD);
+        int pillX = sbX + pillInset;
+        int pillW = sbW - pillInset * 2;
+        int iconSize = dp(CATEGORY_ICON);
+        int iconGap = dp(CATEGORY_ICON_GAP);
+
+        // Section header.
+        drawScaledText(ctx, "HELPERS",
+                pillX + dp(10), sbY + dp(2), TEXT_SECTION,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SECTION_HEADER_ALPHA * eased));
+        int cursorY = sbY + dp(SECTION_HEADER_GAP);
+
+        Helper[] helpers = Helper.values();
+        hoveredHelperIndex = -1;
+        for (int i = 0; i < helpers.length; i++) {
+            Helper h = helpers[i];
+            int rowY = cursorY;
+            boolean hov = mx >= pillX && mx <= pillX + pillW
+                    && my >= rowY && my <= rowY + rowH;
+            if (hov) hoveredHelperIndex = i;
+            boolean isSelected = h == selectedHelper;
+
+            if (isSelected) {
+                drawLiquidGlass(ctx, pillX, rowY, pillW, rowH, dp(SIDEBAR_ROW_RADIUS),
+                        MenuTheme.MATERIAL_CARD_ACTIVE,
+                        MenuTheme.MATERIAL_OPACITY_CARD_ACTIVE + 0.05f, eased);
+            } else if (hov) {
+                drawLiquidGlass(ctx, pillX, rowY, pillW, rowH, dp(SIDEBAR_ROW_RADIUS),
+                        MenuTheme.MATERIAL_CARD,
+                        MenuTheme.MATERIAL_OPACITY_CARD + 0.05f, eased);
+            }
+
+            int contentX = pillX + dp(10);
+            int iconY = rowY + (rowH - iconSize) / 2;
+            int iconColor;
+            int textColor;
+            if (isSelected) {
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased);
+            } else if (hov) {
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.80f * eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.85f * eased);
+            } else {
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.45f * eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased);
+            }
+            drawHelperIcon(ctx, h, contentX, iconY, iconSize, iconColor);
+            int textY = rowY + (rowH - textHeight(TEXT_CATEGORY)) / 2;
+            drawScaledText(ctx, h.label, contentX + iconSize + iconGap, textY,
+                    TEXT_CATEGORY, textColor);
+
+            cursorY += rowH + dp(2);
+        }
+
+        // Vertical separator on the LEFT edge of the right sidebar — mirrors the left one.
+        int vsX = sbX - 1;
+        ctx.fill(vsX, py, vsX + 1, py + ph,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SEPARATOR_ALPHA_SIDEBAR * eased));
+    }
+
+    /** Distinct monogram-style glyph for each helper. */
+    private void drawHelperIcon(DrawContext ctx, Helper helper, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = color & 0x00FFFFFF | 0xFF000000;
+        int radius = Math.max(2, size / 4);
+        // All helpers share the same rounded-square frame; the inner mark differs.
+        HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, radius, 1.2f, alpha);
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        int dot = Math.max(2, size / 4);
+        switch (helper) {
+            case FT_HELPER -> {
+                // small filled triangle pointing up
+                int u = Math.max(1, size / 6);
+                HudCardRenderer.drawOverlayCard(ctx, cx - dot / 2, cy - dot / 2, dot, dot,
+                        1.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - u, cy + u, 2 * u + 1, u,
+                        u / 2.0f, rgb, alpha * 0.85f);
+            }
+            case HW_HELPER -> {
+                // two vertical bars (looks like "H")
+                int bar = Math.max(1, size / 8);
+                int barH = size - radius * 2;
+                HudCardRenderer.drawOverlayCard(ctx, x + radius, cy - barH / 2,
+                        bar, barH, bar / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - radius - bar, cy - barH / 2,
+                        bar, barH, bar / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + radius, cy - bar / 2,
+                        size - radius * 2, bar, bar / 2.0f, rgb, alpha);
+            }
+            case RV_HELPER -> {
+                // diamond-ish reticle
+                int u = Math.max(1, size / 5);
+                HudCardRenderer.drawShaderOutline(ctx, cx - u, cy - u, u * 2, u * 2,
+                        u, 1.0f, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - 1, cy - 1, 2, 2,
+                        1.0f, rgb, alpha);
+            }
+        }
+    }
+
     // ---------- Content area (list ↔ detail drill-down) ----------
 
     private void renderContent(DrawContext ctx, int mx, int my, float eased,
                                 int px, int py, int pw, int ph) {
         int cx = px + dp(SIDEBAR_W) + 1;
         int cy = py + dp(HEADER_H);
-        int cw = pw - dp(SIDEBAR_W) - 1;
+        int cw = pw - dp(SIDEBAR_W) - dp(RIGHT_SIDEBAR_W) - 2;
         int chh = ph - dp(HEADER_H);
 
         ctx.enableScissor(cx, cy, cx + cw, cy + chh);
@@ -725,6 +840,13 @@ public class VibeVisualsMenuScreen extends Screen {
             return true;
         }
 
+        // Right-sidebar helper tab click.
+        if (hoveredHelperIndex >= 0) {
+            Helper clicked = Helper.values()[hoveredHelperIndex];
+            selectedHelper = (selectedHelper == clicked) ? null : clicked;
+            return true;
+        }
+
         // Sidebar category change resets drill-down.
         if (hoveredCategoryIndex >= 0) {
             Category cat = Category.values()[hoveredCategoryIndex];
@@ -928,6 +1050,15 @@ public class VibeVisualsMenuScreen extends Screen {
     private static float easeOutCubic(float t) { float p = 1.0f - t; return 1.0f - p * p * p; }
 
     // ---------- Types ----------
+
+    private enum Helper {
+        FT_HELPER("FTHelper"),
+        HW_HELPER("HWHelper"),
+        RV_HELPER("RVHelper");
+
+        final String label;
+        Helper(String label) { this.label = label; }
+    }
 
     private enum Section {
         MODULES("MODULES"),
