@@ -30,6 +30,7 @@ import ru.suppelemen.vibevisuals.feature.utility.AutoEatController;
 import ru.suppelemen.vibevisuals.feature.utility.AutoPotionController;
 import ru.suppelemen.vibevisuals.feature.utility.AutoRespawnController;
 import ru.suppelemen.vibevisuals.feature.utility.TapeMouseController;
+import ru.suppelemen.vibevisuals.feature.visual.MoggedOverlay;
 import ru.suppelemen.vibevisuals.feature.visual.ProjectilePrediction;
 import ru.suppelemen.vibevisuals.feature.visual.TargetEsp;
 import ru.suppelemen.vibevisuals.feature.visual.VisualEffects;
@@ -135,6 +136,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (world.isClient() && entity instanceof PlayerEntity target && player != target) {
                 PvpCombatTracker.startCombat(target);
+                MoggedOverlay.onHit(target);
                 if (isCriticalHit(player)) {
                     CustomHitSoundPlayer.playCrit();
                     ShiftUpController.onCritHit();
@@ -158,6 +160,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         WorldRenderEvents.AFTER_ENTITIES.register(ProjectilePrediction::render);
         WorldRenderEvents.AFTER_ENTITIES.register(TargetEsp::render);
         WorldRenderEvents.AFTER_ENTITIES.register(MarkerManager::render);
+        WorldRenderEvents.AFTER_ENTITIES.register(MoggedOverlay::render);
     }
 
     private static boolean isCriticalHit(PlayerEntity player) {

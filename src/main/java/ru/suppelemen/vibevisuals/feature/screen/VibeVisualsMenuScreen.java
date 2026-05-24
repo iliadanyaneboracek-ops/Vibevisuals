@@ -145,6 +145,7 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.PVP, "Saturation",     () -> c.saturationDisplay.enabled, v -> c.saturationDisplay.enabled = v, c.saturationDisplay));
         features.add(new FeatureEntry(Category.PVP, "Crit Hit Sound", () -> c.customHitSound.enabled, v -> c.customHitSound.enabled = v, c.customHitSound));
         features.add(new FeatureEntry(Category.PVP, "Shift Up",       () -> c.shiftUp.enabled,        v -> c.shiftUp.enabled = v, c.shiftUp));
+        features.add(new FeatureEntry(Category.PVP, "Mogged",         () -> c.mogged.enabled,         v -> c.mogged.enabled = v, c.mogged));
         features.add(new FeatureEntry(Category.VISUALS, "Sky Color",   () -> c.visualEffects.skyColorEnabled,        v -> c.visualEffects.skyColorEnabled = v, c.visualEffects));
         features.add(new FeatureEntry(Category.VISUALS, "Fog Color",   () -> c.visualEffects.fogColorEnabled,        v -> c.visualEffects.fogColorEnabled = v, c.visualEffects));
         features.add(new FeatureEntry(Category.VISUALS, "Particles",   () -> c.visualEffects.customParticlesEnabled, v -> c.visualEffects.customParticlesEnabled = v, c.visualEffects));
