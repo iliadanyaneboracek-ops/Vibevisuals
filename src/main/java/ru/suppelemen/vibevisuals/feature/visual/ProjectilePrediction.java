@@ -55,16 +55,16 @@ public final class ProjectilePrediction {
         }
 
         renderTick++;
-        updateTrails(client, config);
+        // Throttle trail iteration — runs every 2 ticks instead of every tick.
+        if ((renderTick & 1) == 0) {
+            updateTrails(client, config);
+        }
         tickCounter++;
         if (tickCounter < config.spawnIntervalTicks) {
             return;
         }
         tickCounter = 0;
 
-        PREDICTION_LINES.clear();
-        MARKERS.clear();
-        RADIUS_MARKERS.clear();
         ItemStack stack = client.player.getMainHandStack();
         PredictionType type = typeFor(stack);
         if (type == PredictionType.NONE) {
@@ -72,9 +72,17 @@ public final class ProjectilePrediction {
             type = typeFor(stack);
         }
 
+        // Early-out: no projectile in hand → wipe state, skip raycasting entirely.
         if (type == PredictionType.NONE) {
+            PREDICTION_LINES.clear();
+            MARKERS.clear();
+            RADIUS_MARKERS.clear();
             return;
         }
+
+        PREDICTION_LINES.clear();
+        MARKERS.clear();
+        RADIUS_MARKERS.clear();
 
         Vec3d origin = client.player.getEyePos();
         Vec3d direction = client.player.getRotationVec(1.0f).normalize();
@@ -156,6 +164,12 @@ public final class ProjectilePrediction {
     }
 
     private static void updateTrails(MinecraftClient client, VibeVisualsConfig.ProjectilePredictionConfig config) {
+        // Bail out early when nothing to do — avoids the expensive world.getEntities()
+        // iteration on busy servers where we'd be scanning hundreds of mobs/items
+        // just to discover there are no projectiles.
+        if (TRAILS.isEmpty() && !anyProjectileNearby(client)) {
+            return;
+        }
         for (Entity entity : client.world.getEntities()) {
             if (!isTrackedProjectile(entity)) {
                 continue;
@@ -178,6 +192,16 @@ public final class ProjectilePrediction {
                 iterator.remove();
             }
         }
+    }
+
+    /** Cheap radius check via entity bounding box query — much faster than iterating all entities. */
+    private static boolean anyProjectileNearby(MinecraftClient client) {
+        if (client.player == null) return false;
+        var box = client.player.getBoundingBox().expand(64.0);
+        for (Entity e : client.world.getEntitiesByClass(Entity.class, box, ProjectilePrediction::isTrackedProjectile)) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean isTrackedProjectile(Entity entity) {
