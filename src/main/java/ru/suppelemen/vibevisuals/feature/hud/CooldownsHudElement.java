@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class CooldownsHudElement extends HudCardElement {
@@ -99,12 +100,17 @@ public class CooldownsHudElement extends HudCardElement {
     }
 
     private static String formatCooldown(int ticks) {
-        int seconds = Math.max(1, (int) Math.ceil(ticks / 20.0));
-        int minutes = seconds / 60;
-        int remainingSeconds = seconds % 60;
-        return minutes > 0
-                ? minutes + ":" + (remainingSeconds < 10 ? "0" : "") + remainingSeconds
-                : "0:" + (seconds < 10 ? "0" : "") + seconds;
+        float seconds = ticks / 20.0f;
+        if (seconds >= 60.0f) {
+            int totalSeconds = (int) Math.ceil(seconds);
+            int minutes = totalSeconds / 60;
+            int remainingSeconds = totalSeconds % 60;
+            return minutes + "m " + remainingSeconds + "s";
+        }
+        if (seconds >= 10.0f) {
+            return Math.max(1, (int) Math.ceil(seconds)) + "s";
+        }
+        return String.format(Locale.ROOT, "%.1fs", Math.max(0.1f, seconds));
     }
 
     private static void drawTitleBar(DrawContext context, int x, int y, VibeVisualsConfig.CardConfig config) {

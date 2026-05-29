@@ -74,7 +74,8 @@
       "Bash(awk '/Lingering-hover tooltip/,/^    private void drawLiquidGlass/' src/main/java/ru/suppelemen/vibevisuals/feature/screen/VibeVisualsMenuScreen.java)",
       "Bash(python3 -c \"from PIL import Image, ImageDraw; print\\('OK'\\)\")",
       "Bash(python3 -m pip install pillow)",
-      "Bash(python3 scripts/gen_potion_icon.py)"
+      "Bash(python3 scripts/gen_potion_icon.py)",
+      "Bash(grep -rn *)"
     ]
   }
 }

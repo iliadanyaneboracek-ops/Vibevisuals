@@ -219,6 +219,10 @@ public class VibeVisualsMenuScreen extends Screen {
                 () -> c.autoRespawn.enabled,          v -> c.autoRespawn.enabled = v, c.autoRespawn));
         features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse",      "Hold-to-attack tape",   "Залипание клавиши мыши", ModuleIcon.LINK,
                 () -> c.tapeMouse.enabled,            v -> c.tapeMouse.enabled = v, c.tapeMouse));
+        features.add(new FeatureEntry(Category.UTILITIES, "Pickup Logger",   "Log items you pick up", "Логирование подбора предметов", ModuleIcon.GRID,
+                () -> c.itemPickupLogger.enabled,     v -> c.itemPickupLogger.enabled = v, c.itemPickupLogger));
+        features.add(new FeatureEntry(Category.UTILITIES, "Lock Slot",       "Lock hotbar slots from drop/click", "Защита слотов хотбара", ModuleIcon.LINK,
+                () -> c.lockSlot.enabled,             v -> c.lockSlot.enabled = v, c.lockSlot));
         features.add(new FeatureEntry(Category.UTILITIES, "Full Bright",    "Max brightness everywhere","Полная яркость везде", ModuleIcon.SUN,
                 () -> c.fullBrightStrength > 0.0f,
                 v -> c.fullBrightStrength = v ? Math.max(0.6f, c.fullBrightStrength) : 0.0f, c));
