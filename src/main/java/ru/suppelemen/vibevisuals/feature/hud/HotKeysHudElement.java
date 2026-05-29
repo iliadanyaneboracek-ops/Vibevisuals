@@ -1,6 +1,7 @@
 package ru.suppelemen.vibevisuals.feature.hud;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.text.StyleSpriteSource;
@@ -11,13 +12,16 @@ import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudElement;
 import ru.suppelemen.vibevisuals.theme.MenuTheme;
-import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 import ru.suppelemen.vibevisuals.util.render.HudGlass;
 
 import java.util.List;
 
 public class HotKeysHudElement extends HudElement {
-    private static final StyleSpriteSource HUD_FONT = new StyleSpriteSource.Font(Identifier.of(VibeVisualsClient.MOD_ID, "hud"));
+    private static final StyleSpriteSource HUD_FONT =
+            new StyleSpriteSource.Font(Identifier.of(VibeVisualsClient.MOD_ID, "hud"));
+    private static final Identifier KEYBOARD_ICON =
+            Identifier.of(VibeVisualsClient.MOD_ID, "textures/gui/hotkeys_keyboard_icon.png");
+    private static final int KEYBOARD_ICON_TEX_SIZE = 256;
 
     private final VibeVisualsConfig.HotKeysConfig config;
 
@@ -47,32 +51,27 @@ public class HotKeysHudElement extends HudElement {
                 ix + config.padding + config.iconSize + 6 + config.titleTextXOffset,
                 titleY, HudGlass.textPrimary(), config.titleTextScale);
 
-        // Subtle separator under the title.
-        int sepY = titleY + scaledTextHeight(config.titleTextScale) + 3;
-        context.fill(ix + config.padding, sepY, ix + width - config.padding, sepY + 1,
-                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.10f));
-
         List<HotKeyEntry> entries = getEntries();
-        int rowHeight = scaledTextHeight(config.rowTextScale);
+        // Body rows are rendered at 80 % of the configured row scale — gives
+        // a tighter, calmer hierarchy against the title.
+        float bodyScale = config.rowTextScale * 0.80f;
+        int rowHeight = scaledTextHeight(bodyScale);
         int rowY = iy + config.rowY;
         for (int index = 0; index < entries.size(); index++) {
             HotKeyEntry entry = entries.get(index);
             int entryY = rowY + index * (rowHeight + config.rowGap);
             drawScaledText(context, client, hudText(entry.label(), false),
-                    ix + config.padding, entryY, HudGlass.textSecondary(), config.rowTextScale);
+                    ix + config.padding, entryY, HudGlass.textSecondary(), bodyScale);
 
+            // No chip / pill behind the binding any more — read as plain text
+            // aligned to the right edge.
             Text keyText = hudText(entry.key(), true);
-            int keyW = scaledTextWidth(client, keyText, config.rowTextScale);
-            // Pill behind the key binding.
-            int chipPad = 4;
-            int chipH = rowHeight + 4;
-            int chipX = ix + width - config.padding - keyW - chipPad * 2;
-            int chipY = entryY - 2;
-            HudGlass.drawChip(context, chipX, chipY, keyW + chipPad * 2, chipH, chipH / 2);
+            int keyW = scaledTextWidth(client, keyText, bodyScale);
+            int keyX = ix + width - config.padding - keyW;
             drawScaledText(context, client, keyText,
-                    chipX + chipPad,
+                    keyX,
                     entryY + config.keyTextYOffset,
-                    HudGlass.textPrimary(), config.rowTextScale);
+                    HudGlass.textPrimary(), bodyScale);
         }
 
         if (editorMode) {
@@ -105,31 +104,39 @@ public class HotKeysHudElement extends HudElement {
 
     private static void drawKeyboardIcon(DrawContext context, int x, int y, int size) {
         if (size <= 0) return;
-        // Rounded accent square with a small key grid — matches the menu icon style.
-        int radius = Math.max(2, size / 4);
-        HudCardRenderer.drawOverlayCard(context, x, y, size, size, radius,
-                MenuTheme.ACCENT_BRIGHT, 0.95f);
-        int keySize = Math.max(1, size / 6);
-        int gap = Math.max(1, size / 8);
-        int startX = x + Math.max(2, size / 5);
-        int startY = y + Math.max(2, size / 4);
-        int keyColor = 0xFFFFFFFF;
-        for (int row = 0; row < 2; row++) {
-            for (int col = 0; col < 3; col++) {
-                int kx = startX + col * (keySize + gap);
-                int ky = startY + row * (keySize + gap);
-                HudCardRenderer.drawOverlayCard(context, kx, ky, keySize, keySize,
-                        keySize / 2.0f, keyColor, 0.85f);
-            }
-        }
+        drawKeyboardTexture(context, x + 1, y + 1, size, MenuTheme.withAlpha(MenuTheme.ACCENT_USER, 0.42f));
+        drawKeyboardTexture(context, x, y, size, MenuTheme.withAlpha(HudGlass.textPrimary(), 0.94f));
+    }
+
+    private static void drawKeyboardTexture(DrawContext context, int x, int y, int size, int color) {
+        context.drawTexture(
+                RenderPipelines.GUI_TEXTURED,
+                KEYBOARD_ICON,
+                x,
+                y,
+                0.0f,
+                0.0f,
+                size,
+                size,
+                KEYBOARD_ICON_TEX_SIZE,
+                KEYBOARD_ICON_TEX_SIZE,
+                KEYBOARD_ICON_TEX_SIZE,
+                KEYBOARD_ICON_TEX_SIZE,
+                color
+        );
     }
 
     private static void drawScaledText(DrawContext context, MinecraftClient client, Text text, int x, int y, int color, float scale) {
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate(x, y);
-        context.getMatrices().scale(scale, scale);
-        context.drawText(client.textRenderer, text, 0, 0, color, false);
-        context.getMatrices().popMatrix();
+        int glyph = Math.max(6, Math.round(9.0f * scale));
+        int nudgeUp = Math.round(glyph * 0.27f);
+        ru.suppelemen.vibevisuals.util.font.SmoothText
+                .drawTextBold(context, text.getString(), x, y - nudgeUp, glyph, color);
+    }
+
+    private static int scaledTextWidthBold(Text text, float scale) {
+        int glyph = Math.max(6, Math.round(9.0f * scale));
+        return ru.suppelemen.vibevisuals.util.font.SmoothText
+                .measureTextBold(text.getString(), glyph);
     }
 
     private static String getReloadKeyName() {
@@ -149,11 +156,8 @@ public class HotKeysHudElement extends HudElement {
         return keyBinding != null ? keyBinding.getBoundKeyLocalizedText().getString() : "B";
     }
 
-    private record HotKeyEntry(String label, String key) {
-    }
-
     private static int scaledTextWidth(MinecraftClient client, Text text, float scale) {
-        return Math.round(client.textRenderer.getWidth(text) * scale);
+        return scaledTextWidthBold(text, scale);
     }
 
     private static int scaledTextHeight(float scale) {
@@ -162,5 +166,8 @@ public class HotKeysHudElement extends HudElement {
 
     private static Text hudText(String text, boolean bold) {
         return Text.literal(text).styled(style -> style.withFont(HUD_FONT).withBold(bold));
+    }
+
+    private record HotKeyEntry(String label, String key) {
     }
 }

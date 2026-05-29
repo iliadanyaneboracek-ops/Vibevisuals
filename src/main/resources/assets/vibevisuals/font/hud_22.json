@@ -3,8 +3,8 @@
     {
       "type": "ttf",
       "file": "vibevisuals:inter.ttf",
-      "size": 24.0,
-      "oversample": 8.0,
+      "size": 22.0,
+      "oversample": 4.0,
       "shift": [
         0.0,
         0.0

@@ -45,11 +45,18 @@ public class VibeVisualsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         VibeVisualsConfigManager.load();
+        ru.suppelemen.vibevisuals.config.ConfigShareManager.init();
         // Apply the menu palette early so the HUD (which uses it now) picks the
         // right theme before the first frame instead of waiting for the user
         // to open the ClickGUI.
+        ru.suppelemen.vibevisuals.theme.MenuTheme.applyAccent(
+                VibeVisualsConfigManager.get().menu.accent);
         ru.suppelemen.vibevisuals.theme.MenuTheme.applyTheme(
                 VibeVisualsConfigManager.get().menu.theme);
+        // Bake the smooth-text atlas + try to force a LINEAR sampler on it.
+        // Atlas dumps to .minecraft/config/vibevisuals/smoothfont-atlas-debug.png
+        // for visual verification; sampler hook result is printed to the log.
+        ru.suppelemen.vibevisuals.util.font.SmoothFontTexture.ensureInitialised();
         CustomHitSoundPlayer.init();
         HudManager.init();
         registerConfigReloadKey();
@@ -159,13 +166,17 @@ public class VibeVisualsClient implements ClientModInitializer {
     }
 
     private static void registerVisualEffectsTick() {
+        // TEMPORARILY DISABLED — world-space overlays (ESP ring, projectile trails,
+        // markers, Mogged banner) are off. Their classes stay so we can re-enable
+        // them on the new design system. Ticks for VisualEffects (particles, sky,
+        // fog) are config-gated already so they stay registered.
         ClientTickEvents.END_CLIENT_TICK.register(VisualEffects::tick);
-        ClientTickEvents.END_CLIENT_TICK.register(ProjectilePrediction::tick);
-        ClientTickEvents.END_CLIENT_TICK.register(TargetEsp::tick);
-        WorldRenderEvents.AFTER_ENTITIES.register(ProjectilePrediction::render);
-        WorldRenderEvents.AFTER_ENTITIES.register(TargetEsp::render);
-        WorldRenderEvents.AFTER_ENTITIES.register(MarkerManager::render);
-        WorldRenderEvents.AFTER_ENTITIES.register(MoggedOverlay::render);
+        // ClientTickEvents.END_CLIENT_TICK.register(ProjectilePrediction::tick);
+        // ClientTickEvents.END_CLIENT_TICK.register(TargetEsp::tick);
+        // WorldRenderEvents.AFTER_ENTITIES.register(ProjectilePrediction::render);
+        // WorldRenderEvents.AFTER_ENTITIES.register(TargetEsp::render);
+        // WorldRenderEvents.AFTER_ENTITIES.register(MarkerManager::render);
+        // WorldRenderEvents.AFTER_ENTITIES.register(MoggedOverlay::render);
     }
 
     private static boolean isCriticalHit(PlayerEntity player) {

@@ -19,45 +19,44 @@ import net.minecraft.entity.player.PlayerEntity;
 
 @Mixin(InGameHud.class)
 public class InGameHudMixin {
+    // TEMPORARILY DISABLED — every custom overlay is short-circuited so vanilla HUD
+    // (hotbar, hearts, food, status effects, crosshair) shows through untouched.
+    // Renderer classes remain on disk; restore each block to re-enable that feature.
+
     @Inject(method = "renderHotbar", at = @At("HEAD"), cancellable = true)
     private void vibevisuals$renderCustomHotbar(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        VibeVisualsConfig config = VibeVisualsConfigManager.get();
-        FireOverlayRenderer.render(context);
-        if (config.hudEnabled && config.hotbar.enabled) {
-            CustomHotbarRenderer.render(context);
-            ci.cancel();
-        }
+        // FireOverlayRenderer.render(context);
+        // VibeVisualsConfig config = VibeVisualsConfigManager.get();
+        // if (config.hudEnabled && config.hotbar.enabled) {
+        //     CustomHotbarRenderer.render(context);
+        //     ci.cancel();
+        // }
     }
 
     @Inject(method = "renderHotbar", at = @At("TAIL"))
     private void vibevisuals$renderHotbarOverlays(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        int barX = context.getScaledWindowWidth() / 2 - 91;
-        int barY = context.getScaledWindowHeight() - 22;
-        HealingHelperRenderer.render(context, barX + 1, barY + 1, 20, 18);
-        SlotTimersRenderer.render(context, barX + 3, barY + 3, 20, 16);
+        // int barX = context.getScaledWindowWidth() / 2 - 91;
+        // int barY = context.getScaledWindowHeight() - 22;
+        // HealingHelperRenderer.render(context, barX + 1, barY + 1, 20, 18);
+        // SlotTimersRenderer.render(context, barX + 3, barY + 3, 20, 16);
     }
 
     @Inject(method = "renderStatusEffectOverlay", at = @At("HEAD"), cancellable = true)
     private void vibevisuals$hideVanillaStatusEffects(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        VibeVisualsConfig config = VibeVisualsConfigManager.get();
-        if (config.hudEnabled && config.potionsCard.enabled) {
-            ci.cancel();
-        }
+        // Don't hide vanilla status effects while custom Potions HUD is disabled.
     }
 
     @Inject(method = "renderCrosshair", at = @At("HEAD"), cancellable = true)
     private void vibevisuals$renderCustomCrosshair(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        VibeVisualsConfig config = VibeVisualsConfigManager.get();
-        if (config.customCrosshair.enabled) {
-            CustomCrosshairRenderer.render(context);
-            if (config.customCrosshair.hideVanilla) {
-                ci.cancel();
-            }
-        }
+        // VibeVisualsConfig config = VibeVisualsConfigManager.get();
+        // if (config.customCrosshair.enabled) {
+        //     CustomCrosshairRenderer.render(context);
+        //     if (config.customCrosshair.hideVanilla) ci.cancel();
+        // }
     }
 
     @Inject(method = "renderFood", at = @At("TAIL"))
     private void vibevisuals$renderSaturationDisplay(DrawContext context, PlayerEntity player, int top, int right, CallbackInfo ci) {
-        SaturationDisplayRenderer.render(context, player, top, right);
+        // SaturationDisplayRenderer.render(context, player, top, right);
     }
 }

@@ -80,7 +80,7 @@ public final class MenuTheme {
     public static final float CARD_OUTLINE_ON_ALPHA = 0.30f;
     public static final float GLASS_HIGHLIGHT_ALPHA = 0.32f;   // inner top stroke alpha
     public static final float GLASS_SHADOW_ALPHA = 0.18f;      // inner bottom stroke alpha
-    public static final float GLASS_OUTLINE_ALPHA = 0.22f;     // outer 1px ring alpha
+    public static final float GLASS_OUTLINE_ALPHA = 0.10f;     // hairline outer ring — premium subtle (was 0.22, too pronounced)
 
     static { applyTheme("DARK"); }
 
@@ -95,7 +95,25 @@ public final class MenuTheme {
         } else {
             applyDark();
         }
+        // After base theme is set, re-apply the accent so ACCENT_USER stays
+        // in sync (base apply* overwrites ACCENT with its legacy default).
+        applyAccent(currentAccentName);
     }
+
+    /** Name of the currently-active accent theme (AccentTheme enum name). */
+    private static String currentAccentName = "DEFAULT";
+    /** Resolved RGB of the active accent. Used by toggles, sliders, etc. */
+    public static int ACCENT_USER = 0xFFE5E5EE;
+
+    /** Apply an accent theme by enum name. */
+    public static void applyAccent(String accentName) {
+        currentAccentName = accentName == null ? "DEFAULT" : accentName;
+        ru.suppelemen.vibevisuals.theme.AccentTheme at =
+                ru.suppelemen.vibevisuals.theme.AccentTheme.fromId(currentAccentName);
+        ACCENT_USER = at.color;
+    }
+
+    public static String currentAccentName() { return currentAccentName; }
 
     private static void applyDark() {
         BG_DEEP        = 0xFF06060B;
@@ -129,10 +147,13 @@ public final class MenuTheme {
         DIM_RGB         = 0xFF07050F;
         GLASS_HIGHLIGHT = 0xFFFFFFFF;
 
-        MATERIAL_PANEL       = 0xFF13131C;
+        // Deeper, more solid navy for the panel — matches the "premium glass"
+        // recipe (rgba(12,13,18,0.72)) ChatGPT suggested. The previous lighter
+        // tint at 0.56 alpha read as too washed-out / desaturated.
+        MATERIAL_PANEL       = 0xFF0C0D12;
         MATERIAL_CARD        = 0xFF1C1C26;
         MATERIAL_CARD_ACTIVE = 0xFF272735;
-        MATERIAL_OPACITY_PANEL       = 0.56f;
+        MATERIAL_OPACITY_PANEL       = 0.72f;
         MATERIAL_OPACITY_CARD        = 0.36f;
         MATERIAL_OPACITY_CARD_ACTIVE = 0.65f;
     }

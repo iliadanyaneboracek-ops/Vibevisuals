@@ -10,8 +10,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VibeVisualsConfig {
-    private static final int CURRENT_CONFIG_VERSION = 2;
+    private static final int CURRENT_CONFIG_VERSION = 6;
     private static final int LEGACY_DEFAULT_MAX_EFFECTS = 3;
+    private static final int LEGACY_DEFAULT_TITLE_ICON_SIZE = 10;
+    private static final int PREVIOUS_DEFAULT_TITLE_ICON_SIZE = 14;
+    private static final int LEGACY_DEFAULT_TITLE_ICON_Y_OFFSET = -2;
+    private static final int LEGACY_DEFAULT_HOTKEYS_ICON_SIZE = 7;
+    private static final int PREVIOUS_DEFAULT_HOTKEYS_ICON_SIZE = 14;
+    private static final int LEGACY_DEFAULT_HOTKEYS_ICON_Y_OFFSET = -2;
 
     public int configVersion = CURRENT_CONFIG_VERSION;
     public boolean hudEnabled = true;
@@ -157,6 +163,21 @@ public class VibeVisualsConfig {
         if (configVersion < CURRENT_CONFIG_VERSION && potionsCard.maxEffects == LEGACY_DEFAULT_MAX_EFFECTS) {
             potionsCard.maxEffects = CardConfig.DEFAULT_MAX_EFFECTS;
         }
+        // (Removed: legacy titleIconSize → 16 migration was hijacking any user
+        //  who chose 10 manually because it can't tell "user kept old default"
+        //  from "user explicitly picked 10". The current default is 10 and
+        //  we trust whatever's in the file.)
+        if (configVersion < CURRENT_CONFIG_VERSION && potionsCard.titleIconYOffset == LEGACY_DEFAULT_TITLE_ICON_Y_OFFSET) {
+            potionsCard.titleIconYOffset = -3;
+        }
+        if (configVersion < CURRENT_CONFIG_VERSION
+                && (hotKeysCard.iconSize == LEGACY_DEFAULT_HOTKEYS_ICON_SIZE
+                || hotKeysCard.iconSize == PREVIOUS_DEFAULT_HOTKEYS_ICON_SIZE)) {
+            hotKeysCard.iconSize = 18;
+        }
+        if (configVersion < CURRENT_CONFIG_VERSION && hotKeysCard.iconYOffset == LEGACY_DEFAULT_HOTKEYS_ICON_Y_OFFSET) {
+            hotKeysCard.iconYOffset = -3;
+        }
 
         potionsCard.validate();
         cooldownsCard.validate();
@@ -225,7 +246,7 @@ public class VibeVisualsConfig {
         public int titleIconSize = 10;
         public int titleIconXOffset = 0;
         public int effectIconYOffset = -1;
-        public int titleIconYOffset = -2;
+        public int titleIconYOffset = -3;
         public int titleTextXOffset = 0;
         public int titleTextYOffset = 0;
         public int timerXOffset = 0;
@@ -349,9 +370,9 @@ public class VibeVisualsConfig {
         public int rowY = 20;
         public int rowGap = 5;
         public int bottomPadding = 4;
-        public int iconSize = 7;
+        public int iconSize = 18;
         public int iconXOffset = 0;
-        public int iconYOffset = -2;
+        public int iconYOffset = -3;
         public int titleTextXOffset = 0;
         public int titleTextYOffset = -1;
         public int keyTextXOffset = 0;
@@ -635,6 +656,7 @@ public class VibeVisualsConfig {
         // ClickGUI appearance toggles.
         public boolean liquidGlassBlur = true; // enables MC backdrop blur behind the menu
         public String theme = "DARK";          // DARK or LIGHT
+        public String accent = "DEFAULT";      // AccentTheme enum name (DEFAULT, OCEAN_BLUE, …)
 
         public static MenuConfig defaults() {
             return new MenuConfig();
