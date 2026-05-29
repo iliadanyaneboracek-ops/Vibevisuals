@@ -71,6 +71,7 @@ public final class CustomHotbarRenderer {
         }
 
         SlotTimersRenderer.render(context, x + config.padding, slotY, config.slotSize + config.slotGap, config.slotSize);
+        LockSlotOverlayRenderer.renderHotbarRow(context, x + config.padding, slotY, config.slotSize, config.slotSize, config.slotSize + config.slotGap);
 
         context.getMatrices().popMatrix();
     }

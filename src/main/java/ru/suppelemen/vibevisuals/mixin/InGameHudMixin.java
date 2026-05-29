@@ -13,6 +13,7 @@ import ru.suppelemen.vibevisuals.feature.hud.CustomCrosshairRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.CustomHotbarRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.FireOverlayRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.HealingHelperRenderer;
+import ru.suppelemen.vibevisuals.feature.hud.LockSlotOverlayRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.SaturationDisplayRenderer;
 import ru.suppelemen.vibevisuals.feature.hud.SlotTimersRenderer;
 import net.minecraft.entity.player.PlayerEntity;
@@ -35,6 +36,7 @@ public class InGameHudMixin {
         int barY = context.getScaledWindowHeight() - 22;
         HealingHelperRenderer.render(context, barX + 1, barY + 1, 20, 18);
         SlotTimersRenderer.render(context, barX + 3, barY + 3, 20, 16);
+        LockSlotOverlayRenderer.renderHotbarRow(context, barX + 3, barY + 3, 16, 16, 20);
     }
 
     @Inject(method = "renderStatusEffectOverlay", at = @At("HEAD"), cancellable = true)

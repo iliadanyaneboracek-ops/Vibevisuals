@@ -133,6 +133,7 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn", () -> config.autoRespawn.enabled, value -> config.autoRespawn.enabled = value, config.autoRespawn));
         features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse", () -> config.tapeMouse.enabled, value -> config.tapeMouse.enabled = value, config.tapeMouse));
         features.add(new FeatureEntry(Category.UTILITIES, "Pickup Logger", () -> config.itemPickupLogger.enabled, value -> config.itemPickupLogger.enabled = value, config.itemPickupLogger));
+        features.add(new FeatureEntry(Category.UTILITIES, "Lock Slot", () -> config.lockSlot.enabled, value -> config.lockSlot.enabled = value, config.lockSlot));
         features.add(new FeatureEntry(Category.UTILITIES, "FullBright", () -> config.fullBrightStrength > 0.0f, value -> config.fullBrightStrength = value ? Math.max(0.6f, config.fullBrightStrength) : 0.0f, config));
         features.add(new FeatureEntry(Category.MENU, "Menu Settings", () -> config.menu.enabled, value -> config.menu.enabled = value, config.menu));
     }

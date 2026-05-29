@@ -45,6 +45,7 @@ public class VibeVisualsConfig {
     public HealingHelperConfig healingHelper = HealingHelperConfig.defaults();
     public SlotTimersConfig slotTimers = SlotTimersConfig.defaults();
     public ItemPickupLoggerConfig itemPickupLogger = ItemPickupLoggerConfig.defaults();
+    public LockSlotConfig lockSlot = LockSlotConfig.defaults();
     public MultiKeyBindingsConfig multiKeyBindings = MultiKeyBindingsConfig.defaults();
 
     public void validate() {
@@ -146,6 +147,10 @@ public class VibeVisualsConfig {
             itemPickupLogger = ItemPickupLoggerConfig.defaults();
         }
 
+        if (lockSlot == null) {
+            lockSlot = LockSlotConfig.defaults();
+        }
+
         if (menu == null) {
             menu = MenuConfig.defaults();
         }
@@ -184,6 +189,7 @@ public class VibeVisualsConfig {
         healingHelper.validate();
         slotTimers.validate();
         itemPickupLogger.validate();
+        lockSlot.validate();
         menu.validate();
         multiKeyBindings.validate();
         hudScale = clamp(hudScale, 0.25f, 3.0f);
@@ -1066,6 +1072,49 @@ public class VibeVisualsConfig {
         public void validate() {
             aggregateWindowTicks = Math.max(0, Math.min(200, aggregateWindowTicks));
             minCount = Math.max(1, Math.min(64, minCount));
+        }
+    }
+
+    public static class LockSlotConfig {
+        public boolean enabled = false;
+        public boolean blockDrop = true;
+        public boolean blockInventoryClicks = true;
+        public boolean showLockIcon = true;
+        public int lockIconColor = 0xFFFFD24D;
+
+        public boolean slot1 = false;
+        public boolean slot2 = false;
+        public boolean slot3 = false;
+        public boolean slot4 = false;
+        public boolean slot5 = false;
+        public boolean slot6 = false;
+        public boolean slot7 = false;
+        public boolean slot8 = false;
+        public boolean slot9 = false;
+
+        public static LockSlotConfig defaults() {
+            return new LockSlotConfig();
+        }
+
+        public void validate() {
+        }
+
+        public boolean isHotbarSlotLocked(int slotIndex) {
+            if (!enabled) {
+                return false;
+            }
+            return switch (slotIndex) {
+                case 0 -> slot1;
+                case 1 -> slot2;
+                case 2 -> slot3;
+                case 3 -> slot4;
+                case 4 -> slot5;
+                case 5 -> slot6;
+                case 6 -> slot7;
+                case 7 -> slot8;
+                case 8 -> slot9;
+                default -> false;
+            };
         }
     }
 

@@ -7,6 +7,7 @@
     "ClientPlayNetworkHandlerMixin",
     "FogRendererMixin",
     "GameMenuScreenMixin",
+    "HandledScreenLockSlotMixin",
     "HeldItemRendererMixin",
     "HungerManagerAccessor",
     "InGameHudMixin",
@@ -14,6 +15,7 @@
     "ItemCooldownEntryAccessor",
     "ItemCooldownManagerAccessor",
     "ItemPickupLoggerMixin",
+    "PlayerEntityLockSlotMixin",
     "SkyRenderingMixin"
   ],
   "injectors": {
