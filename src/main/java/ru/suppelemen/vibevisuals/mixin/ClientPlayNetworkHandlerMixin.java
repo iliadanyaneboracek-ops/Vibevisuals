@@ -4,11 +4,15 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
+import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
+import ru.suppelemen.vibevisuals.feature.pvp.TotemCounter;
+import ru.suppelemen.vibevisuals.feature.utility.AutoLeaveController;
 
 @Mixin(ClientPlayNetworkHandler.class)
 public class ClientPlayNetworkHandlerMixin {
@@ -22,6 +26,16 @@ public class ClientPlayNetworkHandlerMixin {
         Entity entity = packet.getEntity(client.world);
         if (entity != null) {
             PvpCombatTracker.onEntityStatus(entity, packet.getStatus());
+            TotemCounter.onEntityStatus(entity, packet.getStatus());
+        }
+    }
+
+    @Inject(method = "onGameMessage", at = @At("HEAD"))
+    private void vibevisuals$autoLeaveOnGameMessage(GameMessageS2CPacket packet, CallbackInfo ci) {
+        if (packet.content() != null) {
+            String content = packet.content().getString();
+            AutoLeaveController.onGameMessage(content);
+            MarkerManager.onChatMessage(content);
         }
     }
 }

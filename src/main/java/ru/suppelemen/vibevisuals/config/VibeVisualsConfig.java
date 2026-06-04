@@ -25,6 +25,7 @@ public class VibeVisualsConfig {
     public TopBarConfig topBar = TopBarConfig.defaults();
     public HotKeysConfig hotKeysCard = HotKeysConfig.defaults();
     public PvpCardConfig pvpCard = PvpCardConfig.defaults();
+    public PvpQuitGuardConfig pvpQuitGuard = PvpQuitGuardConfig.defaults();
     public ArmorHudConfig armorHud = ArmorHudConfig.defaults();
     public InventoryHudConfig inventoryHud = InventoryHudConfig.defaults();
     public HotbarConfig hotbar = HotbarConfig.defaults();
@@ -35,6 +36,8 @@ public class VibeVisualsConfig {
     public CustomHandConfig customHand = CustomHandConfig.defaults();
     public CustomCrosshairConfig customCrosshair = CustomCrosshairConfig.defaults();
     public MarkersConfig markers = MarkersConfig.defaults();
+    public DeathMarkerConfig deathMarker = DeathMarkerConfig.defaults();
+    public ChatEventConfig chatEvents = ChatEventConfig.defaults();
     public CustomHitSoundConfig customHitSound = CustomHitSoundConfig.defaults();
     public ShiftUpConfig shiftUp = ShiftUpConfig.defaults();
     public VisualEffectsConfig visualEffects = VisualEffectsConfig.defaults();
@@ -44,6 +47,11 @@ public class VibeVisualsConfig {
     public TapeMouseConfig tapeMouse = TapeMouseConfig.defaults();
     public HealingHelperConfig healingHelper = HealingHelperConfig.defaults();
     public SlotTimersConfig slotTimers = SlotTimersConfig.defaults();
+    public TotemCounterConfig totemCounter = TotemCounterConfig.defaults();
+    public StreamerModeConfig streamerMode = StreamerModeConfig.defaults();
+    public AutoLeaveConfig autoLeave = AutoLeaveConfig.defaults();
+    public ZoomConfig zoom = ZoomConfig.defaults();
+    public SoundControllerConfig soundController = SoundControllerConfig.defaults();
     public MultiKeyBindingsConfig multiKeyBindings = MultiKeyBindingsConfig.defaults();
 
     public void validate() {
@@ -65,6 +73,10 @@ public class VibeVisualsConfig {
 
         if (pvpCard == null) {
             pvpCard = PvpCardConfig.defaults();
+        }
+
+        if (pvpQuitGuard == null) {
+            pvpQuitGuard = PvpQuitGuardConfig.defaults();
         }
 
         if (armorHud == null) {
@@ -101,6 +113,12 @@ public class VibeVisualsConfig {
         }
         if (markers == null) {
             markers = MarkersConfig.defaults();
+        }
+        if (deathMarker == null) {
+            deathMarker = DeathMarkerConfig.defaults();
+        }
+        if (chatEvents == null) {
+            chatEvents = ChatEventConfig.defaults();
         }
         if (customHitSound == null) {
             customHitSound = CustomHitSoundConfig.defaults();
@@ -141,6 +159,26 @@ public class VibeVisualsConfig {
             slotTimers = SlotTimersConfig.defaults();
         }
 
+        if (totemCounter == null) {
+            totemCounter = TotemCounterConfig.defaults();
+        }
+
+        if (streamerMode == null) {
+            streamerMode = StreamerModeConfig.defaults();
+        }
+
+        if (autoLeave == null) {
+            autoLeave = AutoLeaveConfig.defaults();
+        }
+
+        if (zoom == null) {
+            zoom = ZoomConfig.defaults();
+        }
+
+        if (soundController == null) {
+            soundController = SoundControllerConfig.defaults();
+        }
+
         if (menu == null) {
             menu = MenuConfig.defaults();
         }
@@ -158,6 +196,7 @@ public class VibeVisualsConfig {
         topBar.validate();
         hotKeysCard.validate();
         pvpCard.validate();
+        pvpQuitGuard.validate();
         armorHud.validate();
         inventoryHud.validate();
         hotbar.validate();
@@ -168,6 +207,8 @@ public class VibeVisualsConfig {
         customHand.validate();
         customCrosshair.validate();
         markers.validate();
+        deathMarker.validate();
+        chatEvents.validate();
         customHitSound.validate();
         shiftUp.validate();
         hudAnimations.validate();
@@ -178,6 +219,11 @@ public class VibeVisualsConfig {
         tapeMouse.validate();
         healingHelper.validate();
         slotTimers.validate();
+        totemCounter.validate();
+        streamerMode.validate();
+        autoLeave.validate();
+        zoom.validate();
+        soundController.validate();
         menu.validate();
         multiKeyBindings.validate();
         hudScale = clamp(hudScale, 0.25f, 3.0f);
@@ -849,7 +895,11 @@ public class VibeVisualsConfig {
         public int maxMarkers = 32;
         public float lineWidth = 3.0f;
         public float radius = 0.35f;
+        public boolean showLabels = true;
         public boolean showDistance = true;
+        public boolean onlyCurrentDimension = true;
+        public float beamHeight = 6.0f;
+        public float labelScale = 1.0f;
 
         public static MarkersConfig defaults() {
             return new MarkersConfig();
@@ -859,6 +909,40 @@ public class VibeVisualsConfig {
             maxMarkers = Math.max(1, Math.min(128, maxMarkers));
             lineWidth = clamp(lineWidth, 1.0f, 10.0f);
             radius = clamp(radius, 0.05f, 2.0f);
+            beamHeight = clamp(beamHeight, 0.0f, 64.0f);
+            labelScale = clamp(labelScale, 0.25f, 4.0f);
+        }
+    }
+
+    public static class DeathMarkerConfig {
+        public boolean enabled = true;
+        public int color = 0xFFFF4D4D;
+        public boolean keepOnlyLast = false;
+        public boolean announceInChat = true;
+
+        public static DeathMarkerConfig defaults() {
+            return new DeathMarkerConfig();
+        }
+
+        public void validate() {
+        }
+    }
+
+    public static class ChatEventConfig {
+        public boolean enabled = false;
+        public int color = 0xFFFFD24D;
+        public boolean useChatCoordinates = true;
+        public List<String> keywords = new ArrayList<>(List.of("event", "ивент", "started", "начал", "boss", "босс"));
+
+        public static ChatEventConfig defaults() {
+            return new ChatEventConfig();
+        }
+
+        public void validate() {
+            if (keywords == null) {
+                keywords = new ArrayList<>();
+            }
+            keywords.removeIf(keyword -> keyword == null || keyword.isBlank());
         }
     }
 
@@ -886,6 +970,17 @@ public class VibeVisualsConfig {
 
         public static ShiftUpConfig defaults() {
             return new ShiftUpConfig();
+        }
+
+        public void validate() {
+        }
+    }
+
+    public static class PvpQuitGuardConfig {
+        public boolean enabled = true;
+
+        public static PvpQuitGuardConfig defaults() {
+            return new PvpQuitGuardConfig();
         }
 
         public void validate() {
@@ -1031,6 +1126,90 @@ public class VibeVisualsConfig {
             pulseSpeed = clamp(pulseSpeed, 0.0f, 4.0f);
             pulseAmplitude = clamp(pulseAmplitude, 0.0f, 1.0f);
             padding = Math.max(-4, Math.min(6, padding));
+        }
+    }
+
+    public static class TotemCounterConfig {
+        public boolean enabled = false;
+        public boolean trackSelf = true;
+        public boolean trackOthers = true;
+        public boolean onlyInPvp = false;
+        public boolean playSound = true;
+
+        public static TotemCounterConfig defaults() {
+            return new TotemCounterConfig();
+        }
+
+        public void validate() {
+        }
+    }
+
+    public static class StreamerModeConfig {
+        public boolean enabled = false;
+        public boolean hideCoordinates = true;
+        public boolean hideName = true;
+        public boolean hideServer = true;
+
+        public static StreamerModeConfig defaults() {
+            return new StreamerModeConfig();
+        }
+
+        public void validate() {
+        }
+    }
+
+    public static class AutoLeaveConfig {
+        public boolean enabled = false;
+        public boolean autoSendNear = true;
+        public int checkIntervalSeconds = 5;
+        public int warningSeconds = 3;
+        public boolean cancelOnMovement = true;
+        public List<String> whitelist = new ArrayList<>();
+
+        public static AutoLeaveConfig defaults() {
+            return new AutoLeaveConfig();
+        }
+
+        public void validate() {
+            checkIntervalSeconds = Math.max(1, Math.min(120, checkIntervalSeconds));
+            warningSeconds = Math.max(0, Math.min(30, warningSeconds));
+            if (whitelist == null) {
+                whitelist = new ArrayList<>();
+            }
+            whitelist.removeIf(name -> name == null || name.isBlank());
+        }
+    }
+
+    public static class ZoomConfig {
+        public boolean enabled = true;
+        public float zoomFactor = 0.30f;
+        public boolean smooth = true;
+        public float animationSpeed = 0.45f;
+
+        public static ZoomConfig defaults() {
+            return new ZoomConfig();
+        }
+
+        public void validate() {
+            zoomFactor = clamp(zoomFactor, 0.05f, 1.0f);
+            animationSpeed = clamp(animationSpeed, 0.05f, 1.0f);
+        }
+    }
+
+    public static class SoundControllerConfig {
+        public boolean enabled = false;
+        public float critVolume = 1.0f;
+        public float attackVolume = 1.0f;
+        public float experienceVolume = 1.0f;
+
+        public static SoundControllerConfig defaults() {
+            return new SoundControllerConfig();
+        }
+
+        public void validate() {
+            critVolume = clamp(critVolume, 0.0f, 2.0f);
+            attackVolume = clamp(attackVolume, 0.0f, 2.0f);
+            experienceVolume = clamp(experienceVolume, 0.0f, 2.0f);
         }
     }
 

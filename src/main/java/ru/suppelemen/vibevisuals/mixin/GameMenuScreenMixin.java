@@ -1,6 +1,7 @@
 package ru.suppelemen.vibevisuals.mixin;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.GameMenuScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -12,6 +13,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
+import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
 import ru.suppelemen.vibevisuals.feature.screen.VibeVisualsMenuScreen;
 
 import java.util.ArrayList;
@@ -70,6 +73,65 @@ public abstract class GameMenuScreenMixin extends Screen {
                             anchor.getWidth(), anchor.getHeight())
                     .build());
         }
+    }
+
+    @Inject(method = "init", at = @At("TAIL"))
+    private void vibevisuals$guardDisconnectButton(CallbackInfo ci) {
+        ButtonWidget disconnect = null;
+        for (var child : children()) {
+            if (child instanceof ButtonWidget widget && vibevisuals$matchesDisconnect(widget.getMessage())) {
+                disconnect = widget;
+                break;
+            }
+        }
+
+        if (disconnect == null) {
+            return;
+        }
+
+        ButtonWidget.PressAction original = ((ButtonWidgetAccessor) disconnect).vibevisuals$getPressAction();
+        int x = disconnect.getX();
+        int y = disconnect.getY();
+        int width = disconnect.getWidth();
+        int height = disconnect.getHeight();
+        Text message = disconnect.getMessage();
+        GameMenuScreen self = (GameMenuScreen) (Object) this;
+
+        remove(disconnect);
+        addDrawableChild(ButtonWidget.builder(message, button -> {
+            if (!vibevisuals$shouldConfirmQuit()) {
+                original.onPress(button);
+                return;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            client.setScreen(new ConfirmScreen(
+                    confirmed -> {
+                        if (confirmed) {
+                            original.onPress(button);
+                        } else {
+                            client.setScreen(self);
+                        }
+                    },
+                    Text.translatableWithFallback("screen.vibevisuals.quit_guard.title", "Вы точно хотите выйти?"),
+                    Text.translatableWithFallback("screen.vibevisuals.quit_guard.message",
+                            "Вы сейчас в PvP. Выход во время боя может быть засчитан как поражение."),
+                    Text.translatableWithFallback("screen.vibevisuals.quit_guard.confirm", "Выйти"),
+                    Text.translatableWithFallback("screen.vibevisuals.quit_guard.cancel", "Остаться")));
+        }).dimensions(x, y, width, height).build());
+    }
+
+    private static boolean vibevisuals$shouldConfirmQuit() {
+        return VibeVisualsConfigManager.get().pvpQuitGuard.enabled && PvpCombatTracker.isActive();
+    }
+
+    private static boolean vibevisuals$matchesDisconnect(Text message) {
+        if (message == null) {
+            return false;
+        }
+        TextContent content = message.getContent();
+        return content instanceof TranslatableTextContent translatable
+                && "menu.disconnect".equals(translatable.getKey());
     }
 
     private static boolean vibevisuals$matchesFeedback(Text message) {

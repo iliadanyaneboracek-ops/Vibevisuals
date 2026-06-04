@@ -21,15 +21,19 @@ import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
 import ru.suppelemen.vibevisuals.feature.keybind.FullBrightController;
 import ru.suppelemen.vibevisuals.feature.keybind.MultiKeyBindingManager;
+import ru.suppelemen.vibevisuals.feature.marker.DeathMarkerController;
 import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
 import ru.suppelemen.vibevisuals.feature.pvp.ShiftUpController;
 import ru.suppelemen.vibevisuals.feature.screen.MarkersScreen;
 import ru.suppelemen.vibevisuals.feature.sound.CustomHitSoundPlayer;
+import ru.suppelemen.vibevisuals.feature.pvp.TotemCounter;
 import ru.suppelemen.vibevisuals.feature.utility.AutoEatController;
+import ru.suppelemen.vibevisuals.feature.utility.AutoLeaveController;
 import ru.suppelemen.vibevisuals.feature.utility.AutoPotionController;
 import ru.suppelemen.vibevisuals.feature.utility.AutoRespawnController;
 import ru.suppelemen.vibevisuals.feature.utility.TapeMouseController;
+import ru.suppelemen.vibevisuals.feature.utility.ZoomController;
 import ru.suppelemen.vibevisuals.feature.visual.ProjectilePrediction;
 import ru.suppelemen.vibevisuals.feature.visual.TargetEsp;
 import ru.suppelemen.vibevisuals.feature.visual.VisualEffects;
@@ -40,6 +44,8 @@ public class VibeVisualsClient implements ClientModInitializer {
     private static KeyBinding reloadConfigKey;
     private static KeyBinding fullBrightKey;
     private static KeyBinding markersMenuKey;
+    private static KeyBinding zoomKey;
+    private static boolean wasInWorld;
 
     @Override
     public void onInitializeClient() {
@@ -49,6 +55,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         registerConfigReloadKey();
         registerFullBrightKey();
         registerMarkersMenuKey();
+        registerZoomKey();
         registerPvpCombatHooks();
         registerVisualEffectsTick();
         registerMultiKeyBindings();
@@ -64,6 +71,19 @@ public class VibeVisualsClient implements ClientModInitializer {
                     }
 
                     HudManager.render(context, 0.0f, false);
+                }
+        );
+
+        HudElementRegistry.addLast(
+                Identifier.of(MOD_ID, "marker_labels"),
+                (DrawContext context, RenderTickCounter tickCounter) -> {
+                    MinecraftClient client = MinecraftClient.getInstance();
+
+                    if (client.currentScreen != null && !(client.currentScreen instanceof ChatScreen)) {
+                        return;
+                    }
+
+                    MarkerManager.renderLabels(context);
                 }
         );
 
@@ -120,6 +140,26 @@ public class VibeVisualsClient implements ClientModInitializer {
         });
     }
 
+    private static void registerZoomKey() {
+        zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.vibevisuals.zoom",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_C,
+                CONTROLS_CATEGORY
+        ));
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            ZoomController.setActive(zoomKey.isPressed());
+            ZoomController.tick(client);
+
+            boolean inWorld = client.world != null && client.player != null;
+            if (wasInWorld && !inWorld) {
+                TotemCounter.reset();
+            }
+            wasInWorld = inWorld;
+        });
+    }
+
     private static void registerMultiKeyBindings() {
         ClientTickEvents.END_CLIENT_TICK.register(MultiKeyBindingManager::tick);
     }
@@ -128,7 +168,9 @@ public class VibeVisualsClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(AutoEatController::tick);
         ClientTickEvents.END_CLIENT_TICK.register(AutoPotionController::tick);
         ClientTickEvents.END_CLIENT_TICK.register(AutoRespawnController::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(AutoLeaveController::tick);
         ClientTickEvents.END_CLIENT_TICK.register(TapeMouseController::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(DeathMarkerController::tick);
     }
 
     private static void registerPvpCombatHooks() {

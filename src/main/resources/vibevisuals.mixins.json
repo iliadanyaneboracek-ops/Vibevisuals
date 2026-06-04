@@ -3,17 +3,21 @@
   "package": "ru.suppelemen.vibevisuals.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ButtonWidgetAccessor",
     "ChatScreenMixin",
     "ClientPlayNetworkHandlerMixin",
+    "DebugHudMixin",
     "FogRendererMixin",
     "GameMenuScreenMixin",
+    "GameRendererMixin",
     "HeldItemRendererMixin",
     "HungerManagerAccessor",
     "InGameHudMixin",
     "InGameOverlayRendererMixin",
     "ItemCooldownEntryAccessor",
     "ItemCooldownManagerAccessor",
-    "SkyRenderingMixin"
+    "SkyRenderingMixin",
+    "SoundSystemMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -119,6 +119,9 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.PVP, "Crit Hit Sound", () -> config.customHitSound.enabled, value -> config.customHitSound.enabled = value, config.customHitSound));
         features.add(new FeatureEntry(Category.PVP, "Shift Up", () -> config.shiftUp.enabled, value -> config.shiftUp.enabled = value, config.shiftUp));
         features.add(new FeatureEntry(Category.PVP, "Healing Helper", () -> config.healingHelper.enabled, value -> config.healingHelper.enabled = value, config.healingHelper));
+        features.add(new FeatureEntry(Category.PVP, "PvP Quit Guard", () -> config.pvpQuitGuard.enabled, value -> config.pvpQuitGuard.enabled = value, config.pvpQuitGuard));
+        features.add(new FeatureEntry(Category.PVP, "Totem Counter", () -> config.totemCounter.enabled, value -> config.totemCounter.enabled = value, config.totemCounter));
+        features.add(new FeatureEntry(Category.PVP, "Sound Controller", () -> config.soundController.enabled, value -> config.soundController.enabled = value, config.soundController));
         features.add(new FeatureEntry(Category.VISUALS, "Sky Color", () -> config.visualEffects.skyColorEnabled, value -> config.visualEffects.skyColorEnabled = value, config.visualEffects));
         features.add(new FeatureEntry(Category.VISUALS, "Fog Color", () -> config.visualEffects.fogColorEnabled, value -> config.visualEffects.fogColorEnabled = value, config.visualEffects));
         features.add(new FeatureEntry(Category.VISUALS, "Particles", () -> config.visualEffects.customParticlesEnabled, value -> config.visualEffects.customParticlesEnabled = value, config.visualEffects));
@@ -127,11 +130,16 @@ public class VibeVisualsMenuScreen extends Screen {
         features.add(new FeatureEntry(Category.VISUALS, "Custom Hand", () -> config.customHand.enabled, value -> config.customHand.enabled = value, config.customHand));
         features.add(new FeatureEntry(Category.UTILITIES, "Projectile Path", () -> config.projectilePrediction.enabled, value -> config.projectilePrediction.enabled = value, config.projectilePrediction));
         features.add(new FeatureEntry(Category.UTILITIES, "HUD Animations", () -> config.hudAnimations.enabled, value -> config.hudAnimations.enabled = value, config.hudAnimations));
-        features.add(new FeatureEntry(Category.UTILITIES, "Markers", () -> config.markers.enabled, value -> config.markers.enabled = value, config.markers));
+        features.add(new FeatureEntry(Category.EVENTS, "Markers", () -> config.markers.enabled, value -> config.markers.enabled = value, config.markers));
+        features.add(new FeatureEntry(Category.EVENTS, "Death Marker", () -> config.deathMarker.enabled, value -> config.deathMarker.enabled = value, config.deathMarker));
+        features.add(new FeatureEntry(Category.EVENTS, "Chat Events", () -> config.chatEvents.enabled, value -> config.chatEvents.enabled = value, config.chatEvents));
         features.add(new FeatureEntry(Category.UTILITIES, "AutoEat", () -> config.autoEat.enabled, value -> config.autoEat.enabled = value, config.autoEat));
         features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion", () -> config.autoPotion.enabled, value -> config.autoPotion.enabled = value, config.autoPotion));
         features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn", () -> config.autoRespawn.enabled, value -> config.autoRespawn.enabled = value, config.autoRespawn));
         features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse", () -> config.tapeMouse.enabled, value -> config.tapeMouse.enabled = value, config.tapeMouse));
+        features.add(new FeatureEntry(Category.UTILITIES, "Streamer Mode", () -> config.streamerMode.enabled, value -> config.streamerMode.enabled = value, config.streamerMode));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoLeave", () -> config.autoLeave.enabled, value -> config.autoLeave.enabled = value, config.autoLeave));
+        features.add(new FeatureEntry(Category.UTILITIES, "Zoom", () -> config.zoom.enabled, value -> config.zoom.enabled = value, config.zoom));
         features.add(new FeatureEntry(Category.UTILITIES, "FullBright", () -> config.fullBrightStrength > 0.0f, value -> config.fullBrightStrength = value ? Math.max(0.6f, config.fullBrightStrength) : 0.0f, config));
         features.add(new FeatureEntry(Category.MENU, "Menu Settings", () -> config.menu.enabled, value -> config.menu.enabled = value, config.menu));
     }
@@ -1240,6 +1248,12 @@ public class VibeVisualsMenuScreen extends Screen {
                 context.fill(cx - 1, cy - 4, cx + 1, cy + 4, c);
                 context.fill(cx - 4, cy - 1, cx + 4, cy + 1, c);
             }
+            case EVENTS -> {
+                // map pin: diamond head + stem
+                context.fill(cx - 1, cy - 4, cx + 1, cy - 3, c);
+                context.fill(cx - 3, cy - 3, cx + 3, cy - 1, c);
+                context.fill(cx - 1, cy - 1, cx + 1, cy + 4, c);
+            }
             case MENU -> {
                 context.fill(cx - 4, cy - 3, cx + 4, cy - 2, c);
                 context.fill(cx - 4, cy - 1, cx + 4, cy, c);
@@ -1258,6 +1272,7 @@ public class VibeVisualsMenuScreen extends Screen {
         HUD("HUD"),
         UTILITIES("Utilities"),
         PVP("PvP"),
+        EVENTS("Events"),
         MENU("Menu"),
         WORLD("World");
 
