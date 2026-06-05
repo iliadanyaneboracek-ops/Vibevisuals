@@ -123,6 +123,13 @@ public class VibeVisualsMenuScreen extends Screen {
     /** Setting row currently being dragged via slider thumb (null when idle). */
     private SettingRow draggingSlider;
 
+    // ---- Colour picker popup state (open when colorRow != null) ----
+    private SettingRow colorRow;
+    private FeatureEntry colorTarget;
+    private float pkH, pkS, pkV, pkA = 1f;     // current HSVA being edited
+    private int colorDrag;                       // 0 none, 1 SV square, 2 hue bar, 3 alpha bar
+    private int pkSvX, pkSvY, pkSvSize, pkHueX, pkAlphaX, pkBarW, pkBarH; // last-drawn geometry
+
     /** Index of the theme tile currently hovered in the Themes detail view. */
     private int hoveredThemeIndex = -1;
 
@@ -187,6 +194,16 @@ public class VibeVisualsMenuScreen extends Screen {
                 () -> c.mogged.enabled,         v -> c.mogged.enabled = v, c.mogged));
         features.add(new FeatureEntry(Category.PVP, "Target ESP",     "Outline ring around target",  "Кольцо-обводка вокруг цели", ModuleIcon.TARGET,
                 () -> c.targetEsp.enabled,      v -> c.targetEsp.enabled = v, c.targetEsp));
+        features.add(new FeatureEntry(Category.PVP, "Mace Shockwave", "Ripple on mace smash hit",    "Волна при ударе булавой", ModuleIcon.SPARK,
+                () -> c.maceShockwave.enabled,  v -> c.maceShockwave.enabled = v, c.maceShockwave));
+        features.add(new FeatureEntry(Category.PVP, "Totem Counter",  "Count totem pops to chat",    "Счётчик попсов тотема", ModuleIcon.CROWN,
+                () -> c.totemCounter.enabled,   v -> c.totemCounter.enabled = v, c.totemCounter));
+        features.add(new FeatureEntry(Category.PVP, "Quit Guard",     "Confirm quitting during PvP", "Защита от выхода в бою", ModuleIcon.SHIELD,
+                () -> c.pvpQuitGuard.enabled,   v -> c.pvpQuitGuard.enabled = v, c.pvpQuitGuard));
+        features.add(new FeatureEntry(Category.PVP, "Damage Numbers", "Floating damage on hit",      "Всплывающие цифры урона", ModuleIcon.SWORD,
+                () -> c.damageIndicators.enabled, v -> c.damageIndicators.enabled = v, c.damageIndicators));
+        features.add(new FeatureEntry(Category.PVP, "Kill Effect",    "Burst when a target dies",    "Эффект при убийстве", ModuleIcon.SPARK,
+                () -> c.killEffect.enabled,       v -> c.killEffect.enabled = v, c.killEffect));
         features.add(new FeatureEntry(Category.PVP, "Saturation",     "Show hunger saturation",      "Показ скрытой сатурации", ModuleIcon.DROP,
                 () -> c.saturationDisplay.enabled, v -> c.saturationDisplay.enabled = v, c.saturationDisplay));
         features.add(new FeatureEntry(Category.PVP, "Crit Hit Sound", "Custom crit sound on hit",    "Свой звук удара по криту", ModuleIcon.SPARK,
@@ -205,12 +222,18 @@ public class VibeVisualsMenuScreen extends Screen {
                 () -> c.customCrosshair.enabled,              v -> c.customCrosshair.enabled = v, c.customCrosshair));
         features.add(new FeatureEntry(Category.VISUALS, "Custom Hand", "Reposition first-person hand","Положение руки от первого лица", ModuleIcon.HAND,
                 () -> c.customHand.enabled,                   v -> c.customHand.enabled = v, c.customHand));
+        features.add(new FeatureEntry(Category.VISUALS, "Codex Wheelchair", "Client-side Codex wheelchair cosmetic", "Косметика Codex в кресле-коляске", ModuleIcon.ACCESSIBILITY,
+                () -> c.codexWheelchair.enabled,              v -> c.codexWheelchair.enabled = v, c.codexWheelchair));
+        features.add(new FeatureEntry(Category.VISUALS, "China Hat", "Conical hat cosmetic, any colour", "Конусная шляпа любого цвета", ModuleIcon.ACCESSIBILITY,
+                () -> c.chinaHat.enabled,                     v -> c.chinaHat.enabled = v, c.chinaHat));
         features.add(new FeatureEntry(Category.UTILITIES, "Projectile Path", "Predict arrow trajectory","Прогноз траектории снарядов", ModuleIcon.CURVE,
                 () -> c.projectilePrediction.enabled, v -> c.projectilePrediction.enabled = v, c.projectilePrediction));
         features.add(new FeatureEntry(Category.UTILITIES, "HUD Animations",  "Smooth HUD transitions","Плавные анимации HUD", ModuleIcon.WAVE,
                 () -> c.hudAnimations.enabled,        v -> c.hudAnimations.enabled = v, c.hudAnimations));
-        features.add(new FeatureEntry(Category.UTILITIES, "Markers",         "World-space waypoints", "Маркеры в мире", ModuleIcon.PIN,
+        features.add(new FeatureEntry(Category.UTILITIES, "Markers",         "World-space waypoints (N)", "Маркеры в мире (N)", ModuleIcon.PIN,
                 () -> c.markers.enabled,              v -> c.markers.enabled = v, c.markers));
+        features.add(new FeatureEntry(Category.UTILITIES, "Block Select",    "Mark blocks/areas (hold G, V removes)", "Выделение блоков/области (зажми G, V убирает)", ModuleIcon.TARGET,
+                () -> c.trapHighlight.enabled,        v -> c.trapHighlight.enabled = v, c.trapHighlight));
         features.add(new FeatureEntry(Category.UTILITIES, "AutoEat",         "Auto-eat when low hunger","Автоматическая еда", ModuleIcon.APPLE,
                 () -> c.autoEat.enabled,              v -> c.autoEat.enabled = v, c.autoEat));
         features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion",      "Auto-drink potions",    "Автоматические зелья", ModuleIcon.POTION,
@@ -223,6 +246,14 @@ public class VibeVisualsMenuScreen extends Screen {
                 () -> c.itemPickupLogger.enabled,     v -> c.itemPickupLogger.enabled = v, c.itemPickupLogger));
         features.add(new FeatureEntry(Category.UTILITIES, "Lock Slot",       "Lock hotbar slots from drop/click", "Защита слотов хотбара", ModuleIcon.LINK,
                 () -> c.lockSlot.enabled,             v -> c.lockSlot.enabled = v, c.lockSlot));
+        features.add(new FeatureEntry(Category.UTILITIES, "Zoom",            "Hold-to-zoom (C)", "Зум по зажатию (C)", ModuleIcon.TARGET,
+                () -> c.zoom.enabled,                 v -> c.zoom.enabled = v, c.zoom));
+        features.add(new FeatureEntry(Category.UTILITIES, "Streamer Mode",   "Hide coords/name from F3", "Скрыть коорд./ник из F3", ModuleIcon.SHIELD,
+                () -> c.streamerMode.enabled,         v -> c.streamerMode.enabled = v, c.streamerMode));
+        features.add(new FeatureEntry(Category.UTILITIES, "Auto Leave",      "Leave when a player is near", "Авто-выход при игроке рядом", ModuleIcon.ARROW_UP,
+                () -> c.autoLeave.enabled,            v -> c.autoLeave.enabled = v, c.autoLeave));
+        features.add(new FeatureEntry(Category.UTILITIES, "Sound Control",   "Per-sound volume control", "Громкость отдельных звуков", ModuleIcon.SPARK,
+                () -> c.soundController.enabled,       v -> c.soundController.enabled = v, c.soundController));
         features.add(new FeatureEntry(Category.UTILITIES, "Full Bright",    "Max brightness everywhere","Полная яркость везде", ModuleIcon.SUN,
                 () -> c.fullBrightStrength > 0.0f,
                 v -> c.fullBrightStrength = v ? Math.max(0.6f, c.fullBrightStrength) : 0.0f, c));
@@ -466,6 +497,12 @@ public class VibeVisualsMenuScreen extends Screen {
             renderContent(context, mouseX, mouseY, eased, px, py, pw, ph);
         } else {
             renderConfigurationsView(context, mouseX, mouseY, eased, px, py, pw, ph);
+        }
+
+        if (colorRow != null && detailTarget != null) {
+            drawColorPicker(context, mouseX, mouseY, eased);
+        } else if (detailTarget == null) {
+            colorRow = null; // detail closed — drop any open picker
         }
 
         super.render(context, mouseX, mouseY, delta);
@@ -1592,6 +1629,14 @@ public class VibeVisualsMenuScreen extends Screen {
                             y + size - palmH - fingerH, fingerW, fingerH, fingerW * 0.5f, rgb, alpha);
                 }
             }
+            case ACCESSIBILITY -> {
+                HudCardRenderer.drawShaderOutline(ctx, x, y + size / 3, size * 2 / 3, size * 2 / 3,
+                        size / 3.0f, 1.0f, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y, s1, size / 2, s1 / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx, y + size / 2, size / 3, s1, s1 / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size * 2 / 3, y + size * 2 / 3,
+                        size / 3, s1, s1 / 2.0f, rgb, alpha);
+            }
             case CURVE -> {
                 // Stepped arc rising from bottom-left to top-right.
                 int steps = size;
@@ -1770,6 +1815,11 @@ public class VibeVisualsMenuScreen extends Screen {
         if (super.mouseClicked(click, doubled)) return true;
         if (click.button() != 0) return false;
 
+        // Colour picker, when open, takes clicks before anything else.
+        if (colorRow != null && colorPickerClick(click.x(), click.y())) {
+            return true;
+        }
+
         // App-rail (left strip) — top priority so it works from any view.
         if (hoveredRailIndex >= 0) {
             AppView clicked = AppView.values()[hoveredRailIndex];
@@ -1856,6 +1906,27 @@ public class VibeVisualsMenuScreen extends Screen {
                     writeNumber(t.config, r.field, v);
                     return true;
                 }
+                // Colour swatch — open the picker.
+                if (isColorField(r.field)
+                        && insideRect(click.x(), click.y(), r.swatchX, r.swatchY, r.swatchSize, r.swatchSize, dp(3))) {
+                    openColorPicker(t, r);
+                    return true;
+                }
+                // String option — click the row to cycle to the next choice.
+                if (r.field.getType() == String.class) {
+                    String[] opts = stringOptionsFor(t.config, r.field);
+                    if (opts != null
+                            && insideRect(click.x(), click.y(), r.x, r.y, r.width, r.height, 0)) {
+                        String cur = fieldToString(t.config, r.field);
+                        int idx = 0;
+                        for (int i = 0; i < opts.length; i++) {
+                            if (opts[i].equalsIgnoreCase(cur)) { idx = i; break; }
+                        }
+                        writeString(t.config, r.field, opts[(idx + 1) % opts.length]);
+                        saveAndReload();
+                        return true;
+                    }
+                }
             }
             return true; // consume clicks inside detail page
         }
@@ -1897,6 +1968,10 @@ public class VibeVisualsMenuScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        if (colorRow != null && colorDrag != 0) {
+            updatePickerDrag(click.x(), click.y());
+            return true;
+        }
         if (draggingSlider != null && detailTarget != null) {
             float v = sliderValueFor(draggingSlider, click.x());
             writeNumber(detailTarget.config, draggingSlider.field, v);
@@ -1907,6 +1982,11 @@ public class VibeVisualsMenuScreen extends Screen {
 
     @Override
     public boolean mouseReleased(Click click) {
+        if (colorRow != null && colorDrag != 0) {
+            colorDrag = 0;
+            saveAndReload();
+            return true;
+        }
         if (draggingSlider != null) {
             // Persist + re-apply HUD only once the drag finishes — keeps the file
             // write rate sane.
@@ -2000,6 +2080,202 @@ public class VibeVisualsMenuScreen extends Screen {
 
     // ---------- Reflection helpers ----------
 
+    // ---------------- Colour picker ----------------
+
+    private void openColorPicker(FeatureEntry target, SettingRow row) {
+        colorTarget = target;
+        colorRow = row;
+        colorDrag = 0;
+        int argb = readIntField(target.config, row.field);
+        int a = (argb >>> 24) & 0xFF;
+        pkA = (a == 0 ? 255 : a) / 255f;
+        float[] hsv = rgbToHsv((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
+        pkH = hsv[0];
+        pkS = hsv[1];
+        pkV = hsv[2];
+    }
+
+    private void closeColorPicker() {
+        if (colorRow != null) {
+            saveAndReload();
+        }
+        colorRow = null;
+        colorTarget = null;
+        colorDrag = 0;
+    }
+
+    private void commitPickerColor() {
+        if (colorRow == null || colorTarget == null) {
+            return;
+        }
+        int[] rgb = hsvToRgb(pkH, pkS, pkV);
+        int a = Math.round(pkA * 255f) & 0xFF;
+        int argb = (a << 24) | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+        writeIntField(colorTarget.config, colorRow.field, argb);
+    }
+
+    private void drawColorPicker(DrawContext ctx, int mouseX, int mouseY, float eased) {
+        // Anchor the popup just below the swatch that opened it.
+        int sv = dp(70);
+        int barW = dp(12);
+        int gap = dp(8);
+        int pad = dp(8);
+        int popW = pad * 2 + sv + gap + barW + gap + barW;
+        int popH = pad * 2 + sv + dp(16);
+
+        int ax = colorRow.swatchX + colorRow.swatchSize - popW;
+        int ay = colorRow.swatchY + colorRow.swatchSize + dp(4);
+        ax = Math.max(dp(4), Math.min(width - popW - dp(4), ax));
+        ay = Math.max(dp(4), Math.min(height - popH - dp(4), ay));
+
+        // Backing card.
+        drawSdfCard(ctx, ax, ay, popW, popH, dp(8), 0.97f);
+        HudCardRenderer.drawShaderOutline(ctx, ax, ay, popW, popH, dp(8), 0.55f, 0.35f);
+
+        pkSvX = ax + pad;
+        pkSvY = ay + pad;
+        pkSvSize = sv;
+        pkBarW = barW;
+        pkBarH = sv;
+        pkHueX = pkSvX + sv + gap;
+        pkAlphaX = pkHueX + barW + gap;
+
+        // SV square — cells of hue@(s,v). 24×24 is smooth enough and cheap.
+        int n = 24;
+        float cw = sv / (float) n;
+        for (int xi = 0; xi < n; xi++) {
+            for (int yi = 0; yi < n; yi++) {
+                float s = xi / (float) (n - 1);
+                float v = 1f - yi / (float) (n - 1);
+                int[] c = hsvToRgb(pkH, s, v);
+                int col = 0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2];
+                int x0 = pkSvX + Math.round(xi * cw);
+                int y0 = pkSvY + Math.round(yi * cw);
+                int x1 = pkSvX + Math.round((xi + 1) * cw);
+                int y1 = pkSvY + Math.round((yi + 1) * cw);
+                ctx.fill(x0, y0, x1, y1, col);
+            }
+        }
+        // SV cursor.
+        int curX = pkSvX + Math.round(pkS * sv);
+        int curY = pkSvY + Math.round((1f - pkV) * sv);
+        ctx.fill(curX - 1, pkSvY, curX + 1, pkSvY + sv, 0x40000000);
+        ctx.fill(pkSvX, curY - 1, pkSvX + sv, curY + 1, 0x40000000);
+        ctx.fill(curX - 2, curY - 2, curX + 2, curY + 2, 0xFFFFFFFF);
+
+        // Hue bar (vertical rainbow).
+        int hn = sv;
+        for (int yi = 0; yi < hn; yi++) {
+            float hh = yi / (float) (hn - 1);
+            int[] c = hsvToRgb(hh, 1f, 1f);
+            int col = 0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2];
+            ctx.fill(pkHueX, pkSvY + yi, pkHueX + barW, pkSvY + yi + 1, col);
+        }
+        int hueY = pkSvY + Math.round(pkH * sv);
+        ctx.fill(pkHueX - 1, hueY - 1, pkHueX + barW + 1, hueY + 1, 0xFFFFFFFF);
+
+        // Alpha bar (current colour, opaque→transparent over a checker).
+        int[] full = hsvToRgb(pkH, pkS, pkV);
+        for (int yi = 0; yi < sv; yi++) {
+            float av = 1f - yi / (float) (sv - 1);
+            // simple checker backdrop
+            boolean checker = ((yi / 4) % 2) == 0;
+            int bg = checker ? 0xFFBBBBBB : 0xFF777777;
+            ctx.fill(pkAlphaX, pkSvY + yi, pkAlphaX + barW, pkSvY + yi + 1, bg);
+            int a = Math.round(av * 255f) & 0xFF;
+            int col = (a << 24) | (full[0] << 16) | (full[1] << 8) | full[2];
+            ctx.fill(pkAlphaX, pkSvY + yi, pkAlphaX + barW, pkSvY + yi + 1, col);
+        }
+        int alphaY = pkSvY + Math.round((1f - pkA) * sv);
+        ctx.fill(pkAlphaX - 1, alphaY - 1, pkAlphaX + barW + 1, alphaY + 1, 0xFFFFFFFF);
+
+        // Hex readout at the bottom.
+        int a = Math.round(pkA * 255f) & 0xFF;
+        String hex = String.format(Locale.ROOT, "#%02X%02X%02X%02X", a, full[0], full[1], full[2]);
+        drawScaledText(ctx, hex, pkSvX, ay + popH - dp(12), TEXT_DETAIL_LABEL,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.9f));
+    }
+
+    /** Returns true if the click was consumed by the picker. */
+    private boolean colorPickerClick(double mx, double my) {
+        if (colorRow == null) {
+            return false;
+        }
+        if (inBox(mx, my, pkSvX, pkSvY, pkSvSize, pkSvSize)) {
+            colorDrag = 1;
+            updatePickerDrag(mx, my);
+            return true;
+        }
+        if (inBox(mx, my, pkHueX, pkSvY, pkBarW, pkBarH)) {
+            colorDrag = 2;
+            updatePickerDrag(mx, my);
+            return true;
+        }
+        if (inBox(mx, my, pkAlphaX, pkSvY, pkBarW, pkBarH)) {
+            colorDrag = 3;
+            updatePickerDrag(mx, my);
+            return true;
+        }
+        // Click elsewhere closes the picker (and persists).
+        closeColorPicker();
+        return true;
+    }
+
+    private void updatePickerDrag(double mx, double my) {
+        if (colorDrag == 1) {
+            pkS = clampf((float) (mx - pkSvX) / pkSvSize, 0f, 1f);
+            pkV = clampf(1f - (float) (my - pkSvY) / pkSvSize, 0f, 1f);
+        } else if (colorDrag == 2) {
+            pkH = clampf((float) (my - pkSvY) / pkBarH, 0f, 1f);
+        } else if (colorDrag == 3) {
+            pkA = clampf(1f - (float) (my - pkSvY) / pkBarH, 0f, 1f);
+        }
+        commitPickerColor();
+    }
+
+    private static boolean inBox(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    }
+
+    private static float clampf(float v, float lo, float hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    private static float[] rgbToHsv(int r, int g, int b) {
+        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
+        float max = Math.max(rf, Math.max(gf, bf));
+        float min = Math.min(rf, Math.min(gf, bf));
+        float d = max - min;
+        float h = 0f;
+        if (d > 0.00001f) {
+            if (max == rf) h = ((gf - bf) / d) % 6f;
+            else if (max == gf) h = (bf - rf) / d + 2f;
+            else h = (rf - gf) / d + 4f;
+            h /= 6f;
+            if (h < 0f) h += 1f;
+        }
+        float s = max <= 0f ? 0f : d / max;
+        return new float[]{h, s, max};
+    }
+
+    private static int[] hsvToRgb(float h, float s, float v) {
+        float r = 0, g = 0, b = 0;
+        int i = (int) Math.floor(h * 6f);
+        float f = h * 6f - i;
+        float p = v * (1f - s);
+        float q = v * (1f - f * s);
+        float t = v * (1f - (1f - f) * s);
+        switch (((i % 6) + 6) % 6) {
+            case 0 -> { r = v; g = t; b = p; }
+            case 1 -> { r = q; g = v; b = p; }
+            case 2 -> { r = p; g = v; b = t; }
+            case 3 -> { r = p; g = q; b = v; }
+            case 4 -> { r = t; g = p; b = v; }
+            default -> { r = v; g = p; b = q; }
+        }
+        return new int[]{Math.round(r * 255f), Math.round(g * 255f), Math.round(b * 255f)};
+    }
+
     private static boolean isEditable(Field f) {
         Class<?> t = f.getType();
         return t == int.class || t == float.class || t == boolean.class || t == String.class
@@ -2040,6 +2316,27 @@ public class VibeVisualsMenuScreen extends Screen {
             Object v = f.get(cfg);
             return v == null ? "" : v.toString();
         } catch (IllegalAccessException e) { return ""; }
+    }
+    private static void writeString(Object cfg, Field f, String v) {
+        try { f.set(cfg, v); } catch (IllegalAccessException ignored) {}
+    }
+    private static int readIntField(Object cfg, Field f) {
+        try { return f.getInt(cfg); } catch (IllegalAccessException e) { return 0; }
+    }
+    private static void writeIntField(Object cfg, Field f, int v) {
+        try { f.setInt(cfg, v); } catch (IllegalAccessException ignored) {}
+    }
+    /** Known choices for cyclable String settings (clicked to cycle in detail). */
+    private static String[] stringOptionsFor(Object cfg, Field f) {
+        String cls = cfg.getClass().getSimpleName();
+        String n = f.getName();
+        if (cls.equals("KillEffectConfig") && n.equals("style"))
+            return new String[]{"BURST", "RING", "FLASH", "LIGHTNING", "SOUL", "BURN"};
+        if (cls.equals("TargetEspConfig") && n.equals("mode"))
+            return new String[]{"COMBO", "RING", "STAR", "ORBIT_PARTICLES", "SPIRAL", "GLOW"};
+        if (cls.equals("CustomHandConfig") && n.equals("mode"))
+            return new String[]{"SPIN", "HORIZONTAL", "LOW", "SIDE", "STAB", "SWING"};
+        return null;
     }
     private static void saveAndReload() {
         VibeVisualsConfigManager.get().validate();
@@ -2296,7 +2593,7 @@ public class VibeVisualsMenuScreen extends Screen {
     private enum ModuleIcon {
         POTION, CLOCK, KEY, BAR, GRID, SHIELD, HOTBAR, HEART,
         SWORD, CROWN, TARGET, DROP, SPARK, ARROW_UP, CLOUD, FOG,
-        FLAME, CROSSHAIR, HAND, CURVE, WAVE, PIN, APPLE, REFRESH,
+        FLAME, CROSSHAIR, HAND, ACCESSIBILITY, CURVE, WAVE, PIN, APPLE, REFRESH,
         LINK, SUN, BLUR, THEME
     }
 
@@ -2334,6 +2631,26 @@ public class VibeVisualsMenuScreen extends Screen {
             return new SliderHint(0.25f, 3f, 0.05f, false);
         if (n.contains("radius"))
             return new SliderHint(0f, 30f, isInt ? 1f : 0.5f, isInt);
+        if (n.contains("waveheight"))
+            return new SliderHint(0f, 8f, 0.1f, false);
+        if (n.contains("referencedamage"))
+            return new SliderHint(1f, 60f, 1f, false);
+        if (n.contains("fall") || n.contains("distance"))
+            return new SliderHint(0f, 10f, 0.5f, false);
+        if (n.contains("thickness"))
+            return new SliderHint(0f, 2f, 0.02f, false);
+        // Position offsets — bidirectional, 0 centred. Covers x/y/z, spinX/Y/Z,
+        // and any *Offset field so the user can nudge either way.
+        if (n.equals("x") || n.equals("y") || n.equals("z")
+                || n.startsWith("spin") || n.endsWith("offset")) {
+            return isInt
+                    ? new SliderHint(-64f, 64f, 1f, true)
+                    : new SliderHint(-2f, 2f, 0.01f, false);
+        }
+        // Angles — full bidirectional sweep.
+        if (n.equals("pitch") || n.equals("yaw") || n.equals("roll")
+                || n.contains("angle") || n.contains("rotation") || n.contains("degrees"))
+            return new SliderHint(-180f, 180f, 1f, false);
         if (n.contains("padding") || n.contains("gap") || n.contains("inset")
                 || n.contains("margin") || n.contains("border"))
             return new SliderHint(0f, 40f, 1f, true);
@@ -2346,8 +2663,8 @@ public class VibeVisualsMenuScreen extends Screen {
             float c = Math.round(currentValue);
             return new SliderHint(c - 64f, c + 64f, 1f, true);
         }
-        // Generic float.
-        return new SliderHint(0f, 1f, 0.01f, false);
+        // Generic float — allow negatives, 0 centred.
+        return new SliderHint(-1f, 1f, 0.01f, false);
     }
 
     private static boolean isColorField(Field f) {

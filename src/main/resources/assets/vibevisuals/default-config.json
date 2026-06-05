@@ -1,8 +1,8 @@
 {
-  "configVersion": 6,
+  "configVersion": 7,
   "hudEnabled": true,
   "hudScale": 1.0,
-  "fullBrightStrength": 1.0,
+  "fullBrightStrength": 0.6,
   "menu": {
     "enabled": true,
     "width": 250,
@@ -33,7 +33,7 @@
     "colorPickerSize": 76,
     "liquidGlassBlur": true,
     "theme": "DARK",
-    "accent": "DEFAULT"
+    "accent": "SUNSET_CORAL"
   },
   "hudAnimations": {
     "enabled": true,
@@ -170,8 +170,8 @@
   },
   "pvpCard": {
     "enabled": true,
-    "x": 448,
-    "y": 16,
+    "x": 166,
+    "y": 210,
     "width": 112,
     "height": 44,
     "size": 1.0,
@@ -312,8 +312,8 @@
     "exhaustionColor": -30147
   },
   "customHand": {
-    "enabled": false,
-    "mode": "HORIZONTAL",
+    "enabled": true,
+    "mode": "SPIN",
     "x": 0.0,
     "y": 0.0,
     "z": 0.0,
@@ -321,7 +321,14 @@
     "yaw": 0.0,
     "roll": 0.0,
     "scale": 1.0,
-    "swingAmount": 0.45
+    "swingAmount": 0.45,
+    "spinX": 0.0,
+    "spinY": 0.0,
+    "spinZ": 0.0,
+    "spinPivotX": 0.0,
+    "spinPivotY": 0.0,
+    "spinPivotZ": 0.0,
+    "spinSpeed": 1.0
   },
   "customCrosshair": {
     "enabled": false,
@@ -352,7 +359,7 @@
     "cooldownTicks": 2.0
   },
   "shiftUp": {
-    "enabled": false
+    "enabled": true
   },
   "visualEffects": {
     "skyColorEnabled": false,
@@ -368,6 +375,12 @@
     "particleRadius": 50.0,
     "particleYOffset": 0.8,
     "particleVelocity": 0.015
+  },
+  "codexWheelchair": {
+    "enabled": false,
+    "onlyThirdPerson": true,
+    "scale": 1.0,
+    "yOffset": 0.05
   },
   "autoEat": {
     "enabled": false,
@@ -413,12 +426,47 @@
     "yOffset": 0
   },
   "mogged": {
-    "enabled": false,
-    "displayDurationSeconds": 1.4,
+    "enabled": true,
+    "displayDurationSeconds": 6.0,
     "bannerScale": 2.0,
     "playSound": true,
     "soundFile": "mogged.wav",
     "volume": 1.0
+  },
+  "itemPickupLogger": {
+    "enabled": false,
+    "useActionBar": false,
+    "logAllItems": true,
+    "logValuables": true,
+    "logEquipment": true,
+    "logFood": true,
+    "logBlocks": true,
+    "logOther": true,
+    "highlightValuables": true,
+    "playValuableSound": true,
+    "showSessionTotal": true,
+    "aggregateWindowTicks": 15,
+    "minCount": 1,
+    "defaultColor": -2630936,
+    "valuableColor": -10138,
+    "countColor": -8626945,
+    "totalColor": -6446413
+  },
+  "lockSlot": {
+    "enabled": false,
+    "blockDrop": true,
+    "blockInventoryClicks": true,
+    "showLockIcon": true,
+    "lockIconColor": -11699,
+    "slot1": true,
+    "slot2": false,
+    "slot3": false,
+    "slot4": false,
+    "slot5": false,
+    "slot6": false,
+    "slot7": false,
+    "slot8": false,
+    "slot9": false
   },
   "multiKeyBindings": {
     "enabled": true,

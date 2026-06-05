@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VibeVisualsConfig {
-    private static final int CURRENT_CONFIG_VERSION = 6;
+    private static final int CURRENT_CONFIG_VERSION = 7;
     private static final int LEGACY_DEFAULT_MAX_EFFECTS = 3;
     private static final int LEGACY_DEFAULT_TITLE_ICON_SIZE = 10;
     private static final int PREVIOUS_DEFAULT_TITLE_ICON_SIZE = 14;
@@ -44,6 +44,18 @@ public class VibeVisualsConfig {
     public CustomHitSoundConfig customHitSound = CustomHitSoundConfig.defaults();
     public ShiftUpConfig shiftUp = ShiftUpConfig.defaults();
     public VisualEffectsConfig visualEffects = VisualEffectsConfig.defaults();
+    public MaceShockwaveConfig maceShockwave = MaceShockwaveConfig.defaults();
+    public DamageIndicatorsConfig damageIndicators = DamageIndicatorsConfig.defaults();
+    public KillEffectConfig killEffect = KillEffectConfig.defaults();
+    public CodexWheelchairConfig codexWheelchair = CodexWheelchairConfig.defaults();
+    public ChinaHatConfig chinaHat = ChinaHatConfig.defaults();
+    public TrapHighlightConfig trapHighlight = TrapHighlightConfig.defaults();
+    public PvpQuitGuardConfig pvpQuitGuard = PvpQuitGuardConfig.defaults();
+    public TotemCounterConfig totemCounter = TotemCounterConfig.defaults();
+    public StreamerModeConfig streamerMode = StreamerModeConfig.defaults();
+    public AutoLeaveConfig autoLeave = AutoLeaveConfig.defaults();
+    public ZoomConfig zoom = ZoomConfig.defaults();
+    public SoundControllerConfig soundController = SoundControllerConfig.defaults();
     public AutoEatConfig autoEat = AutoEatConfig.defaults();
     public AutoPotionConfig autoPotion = AutoPotionConfig.defaults();
     public AutoRespawnConfig autoRespawn = AutoRespawnConfig.defaults();
@@ -124,6 +136,42 @@ public class VibeVisualsConfig {
 
         if (visualEffects == null) {
             visualEffects = VisualEffectsConfig.defaults();
+        }
+        if (maceShockwave == null) {
+            maceShockwave = MaceShockwaveConfig.defaults();
+        }
+        if (damageIndicators == null) {
+            damageIndicators = DamageIndicatorsConfig.defaults();
+        }
+        if (killEffect == null) {
+            killEffect = KillEffectConfig.defaults();
+        }
+        if (codexWheelchair == null) {
+            codexWheelchair = CodexWheelchairConfig.defaults();
+        }
+        if (chinaHat == null) {
+            chinaHat = ChinaHatConfig.defaults();
+        }
+        if (trapHighlight == null) {
+            trapHighlight = TrapHighlightConfig.defaults();
+        }
+        if (pvpQuitGuard == null) {
+            pvpQuitGuard = PvpQuitGuardConfig.defaults();
+        }
+        if (totemCounter == null) {
+            totemCounter = TotemCounterConfig.defaults();
+        }
+        if (streamerMode == null) {
+            streamerMode = StreamerModeConfig.defaults();
+        }
+        if (autoLeave == null) {
+            autoLeave = AutoLeaveConfig.defaults();
+        }
+        if (zoom == null) {
+            zoom = ZoomConfig.defaults();
+        }
+        if (soundController == null) {
+            soundController = SoundControllerConfig.defaults();
         }
 
         if (autoEat == null) {
@@ -208,6 +256,18 @@ public class VibeVisualsConfig {
         shiftUp.validate();
         hudAnimations.validate();
         visualEffects.validate();
+        maceShockwave.validate();
+        damageIndicators.validate();
+        killEffect.validate();
+        codexWheelchair.validate();
+        chinaHat.validate();
+        trapHighlight.validate();
+        pvpQuitGuard.validate();
+        totemCounter.validate();
+        streamerMode.validate();
+        autoLeave.validate();
+        zoom.validate();
+        soundController.validate();
         autoEat.validate();
         autoPotion.validate();
         autoRespawn.validate();
@@ -833,7 +893,8 @@ public class VibeVisualsConfig {
 
     public static class CustomHandConfig {
         public boolean enabled = false;
-        public String mode = "HORIZONTAL";
+        /** Render mode. Built-ins: HORIZONTAL, LOW, SIDE, STAB, SWING, SPIN. */
+        public String mode = "SPIN";
         public float x = 0.0f;
         public float y = 0.0f;
         public float z = 0.0f;
@@ -842,6 +903,21 @@ public class VibeVisualsConfig {
         public float roll = 0.0f;
         public float scale = 1.0f;
         public float swingAmount = 0.45f;
+
+        // SPIN-mode specific position offsets (camera space). Tweak to place
+        // the laid-down blade exactly where you want it on screen.
+        public float spinX = -0.10f;
+        public float spinY = 0.18f;
+        public float spinZ = 0.10f;
+        // Pivot the Z-axis (screen-plane) spin rotates around, in SCREEN space.
+        // Because the spin axis is Z, only X and Y move the centre of rotation;
+        // Z has no effect. Defaults sit roughly at the laid-down blade's middle
+        // so it twirls in place instead of arcing off the bottom of the screen.
+        public float spinPivotX = -0.35f;
+        public float spinPivotY = 0.0f;
+        public float spinPivotZ = 0.0f;
+        // How many full turns per swing (1.0 = one 360° per hit). Higher = faster.
+        public float spinSpeed = 1.0f;
 
         public static CustomHandConfig defaults() {
             return new CustomHandConfig();
@@ -859,6 +935,13 @@ public class VibeVisualsConfig {
             roll = clamp(roll, -180.0f, 180.0f);
             scale = clamp(scale, 0.20f, 3.0f);
             swingAmount = clamp(swingAmount, 0.0f, 2.0f);
+            spinX = clamp(spinX, -2.0f, 2.0f);
+            spinY = clamp(spinY, -2.0f, 2.0f);
+            spinZ = clamp(spinZ, -2.0f, 2.0f);
+            spinPivotX = clamp(spinPivotX, -2.0f, 2.0f);
+            spinPivotY = clamp(spinPivotY, -2.0f, 2.0f);
+            spinPivotZ = clamp(spinPivotZ, -2.0f, 2.0f);
+            spinSpeed = clamp(spinSpeed, 0.1f, 6.0f);
         }
     }
 
@@ -970,6 +1053,283 @@ public class VibeVisualsConfig {
             particleRadius = clamp(particleRadius, 0.0f, 256.0f);
             particleYOffset = clamp(particleYOffset, -4.0f, 4.0f);
             particleVelocity = clamp(particleVelocity, 0.0f, 0.5f);
+        }
+    }
+
+    public static class MaceShockwaveConfig {
+        public boolean enabled = false;
+        // Overall size multiplier for the whole effect (radius + thickness +
+        // height). 1.0 = base values below.
+        public float size = 1.0f;
+        // Outer expanding ring + inner accent ring.
+        public int ringColor = 0xFFFFFFFF;
+        public int coreColor = 0xFF8FE3FF;
+        // How far (in blocks) the wave grows before it fades out.
+        public float maxRadius = 4.5f;
+        // Concentric rings drawn (staggered so they ripple outward).
+        public int rings = 3;
+        // Lifetime of one shockwave (expand + fade), in client render ticks.
+        public int lifeTicks = 16;
+        public float lineWidth = 5.0f;
+        // Real band thickness in blocks (drawn as stacked rings so it stays
+        // thick even when the GPU caps GL line width at 1px).
+        public float thickness = 0.22f;
+        public int segments = 56;
+        // Lift the ring slightly off the ground to avoid z-fighting with blocks.
+        public float heightOffset = 0.06f;
+        // Peak vertical height of the wave wall on impact (blocks, at reference
+        // fall). The wall starts this tall and collapses to the ground.
+        public float waveHeight = 1.8f;
+        // Scale radius / thickness / height by the smash DAMAGE dealt. Harder
+        // hit = bigger, taller, thicker shockwave.
+        public boolean scaleWithDamage = true;
+        // Smash damage that produces the full base values above. Hits weaker
+        // than this shrink the wave; stronger ones grow it.
+        public float referenceDamage = 16.0f;
+        // Only fire on a real mace SMASH: requires this much fall distance.
+        public float minFallDistance = 1.5f;
+        // Spawn a dust burst on impact in the accent colour.
+        public boolean spawnParticles = true;
+        public int particleCount = 28;
+
+        public static MaceShockwaveConfig defaults() {
+            return new MaceShockwaveConfig();
+        }
+
+        public void validate() {
+            size = clamp(size, 0.25f, 4.0f);
+            maxRadius = clamp(maxRadius, 1.0f, 16.0f);
+            rings = Math.max(1, Math.min(6, rings));
+            lifeTicks = Math.max(4, Math.min(80, lifeTicks));
+            lineWidth = clamp(lineWidth, 1.0f, 12.0f);
+            thickness = clamp(thickness, 0.0f, 2.0f);
+            segments = Math.max(12, Math.min(128, segments));
+            heightOffset = clamp(heightOffset, 0.0f, 2.0f);
+            waveHeight = clamp(waveHeight, 0.0f, 8.0f);
+            referenceDamage = clamp(referenceDamage, 1.0f, 60.0f);
+            minFallDistance = clamp(minFallDistance, 0.0f, 10.0f);
+            particleCount = Math.max(0, Math.min(128, particleCount));
+        }
+    }
+
+    public static class DamageIndicatorsConfig {
+        public boolean enabled = true;
+        // Floating number colours.
+        public int color = 0xFFFF5555;       // normal hit
+        public int critColor = 0xFFFFD24D;   // critical hit
+        public int healColor = 0xFF5CE38B;   // healing (target gained HP)
+        public float size = 1.0f;            // overall text scale
+        public float critSizeBonus = 0.4f;   // crits render this much bigger
+        public float lifeSeconds = 1.0f;     // how long a number lives
+        public float riseDistance = 0.7f;    // blocks it floats upward
+        public boolean showDecimals = true;  // 6.5 vs 6
+        public boolean showHealing = true;   // also pop green numbers on heal
+        public boolean onlyPlayers = false;  // ignore mobs when true
+        public boolean seeThrough = true;    // faint copy visible through walls
+
+        public static DamageIndicatorsConfig defaults() {
+            return new DamageIndicatorsConfig();
+        }
+
+        public void validate() {
+            size = clamp(size, 0.25f, 4.0f);
+            critSizeBonus = clamp(critSizeBonus, 0.0f, 3.0f);
+            lifeSeconds = clamp(lifeSeconds, 0.2f, 5.0f);
+            riseDistance = clamp(riseDistance, 0.0f, 4.0f);
+        }
+    }
+
+    public static class KillEffectConfig {
+        public boolean enabled = true;
+        // Visual style: RING, BURST (ring + particles), FLASH (quick rings), LIGHTNING.
+        public String style = "BURST";
+        public int color = 0xFFFF4D4D;
+        public int accentColor = 0xFFFFD24D;
+        public float size = 1.0f;          // overall multiplier
+        public float maxRadius = 2.6f;     // ground ring radius (blocks)
+        public int lifeTicks = 14;
+        public int rings = 2;
+        public float lineWidth = 4.0f;
+        public int segments = 48;
+        public float heightOffset = 0.06f;
+        public boolean spawnParticles = true;
+        public int particleCount = 40;
+        // SOUL style only: how high (blocks) the soul rises before fading.
+        public float soulRise = 7.0f;
+
+        public static KillEffectConfig defaults() {
+            return new KillEffectConfig();
+        }
+
+        public void validate() {
+            if (style == null || style.isBlank()) {
+                style = "BURST";
+            }
+            size = clamp(size, 0.25f, 4.0f);
+            maxRadius = clamp(maxRadius, 0.5f, 12.0f);
+            lifeTicks = Math.max(4, Math.min(80, lifeTicks));
+            rings = Math.max(1, Math.min(6, rings));
+            lineWidth = clamp(lineWidth, 1.0f, 12.0f);
+            segments = Math.max(12, Math.min(128, segments));
+            heightOffset = clamp(heightOffset, 0.0f, 2.0f);
+            particleCount = Math.max(0, Math.min(160, particleCount));
+            soulRise = clamp(soulRise, 1.0f, 24.0f);
+        }
+    }
+
+    public static class CodexWheelchairConfig {
+        public boolean enabled = false;
+        public boolean onlyThirdPerson = true;
+        public float scale = 1.0f;
+        public float yOffset = 0.05f;
+
+        public static CodexWheelchairConfig defaults() {
+            return new CodexWheelchairConfig();
+        }
+
+        public void validate() {
+            scale = clamp(scale, 0.40f, 2.50f);
+            yOffset = clamp(yOffset, -1.0f, 1.0f);
+        }
+    }
+
+    public static class ChinaHatConfig {
+        public boolean enabled = false;
+        public int color = 0xFFFF55FF;        // any colour (ARGB, alpha = opacity)
+        public float radius = 0.62f;          // brim width (blocks)
+        public float height = 0.34f;          // cone height (blocks)
+        public float yOffset = 0.0f;          // nudge up/down on the head
+        public int segments = 36;             // smoothness of the cone
+        public boolean onlyThirdPerson = true; // hide in first person
+        public boolean allPlayers = false;    // also put it on every other player
+
+        public static ChinaHatConfig defaults() {
+            return new ChinaHatConfig();
+        }
+
+        public void validate() {
+            radius = clamp(radius, 0.1f, 2.0f);
+            height = clamp(height, 0.02f, 2.0f);
+            yOffset = clamp(yOffset, -1.0f, 1.0f);
+            segments = Math.max(8, Math.min(96, segments));
+        }
+    }
+
+    public static class TrapHighlightConfig {
+        public boolean enabled = false;
+        // Colour applied to the NEXT selection you make. Already-placed
+        // selections keep the colour they were created with, so changing this
+        // only affects new marks. Use different colours to tell traps / pulls
+        // apart yourself.
+        public int nextColor = 0xFF4DFFA6;
+        // Solid outline thickness in blocks (real 3D beams).
+        public float thickness = 0.06f;
+        // Animate outlines through an RGB rainbow (overrides per-mark colours).
+        public boolean rainbow = false;
+        public float rainbowSpeed = 1.0f;
+
+        public static TrapHighlightConfig defaults() {
+            return new TrapHighlightConfig();
+        }
+
+        public void validate() {
+            thickness = clamp(thickness, 0.01f, 0.4f);
+            rainbowSpeed = clamp(rainbowSpeed, 0.0f, 5.0f);
+        }
+    }
+
+    public static class PvpQuitGuardConfig {
+        public boolean enabled = true;
+
+        public static PvpQuitGuardConfig defaults() {
+            return new PvpQuitGuardConfig();
+        }
+
+        public void validate() {
+        }
+    }
+
+    public static class TotemCounterConfig {
+        public boolean enabled = false;
+        public boolean trackSelf = true;
+        public boolean trackOthers = true;
+        public boolean onlyInPvp = false;
+        public boolean playSound = true;
+
+        public static TotemCounterConfig defaults() {
+            return new TotemCounterConfig();
+        }
+
+        public void validate() {
+        }
+    }
+
+    public static class StreamerModeConfig {
+        public boolean enabled = false;
+        public boolean hideCoordinates = true;
+        public boolean hideName = true;
+        public boolean hideServer = true;
+
+        public static StreamerModeConfig defaults() {
+            return new StreamerModeConfig();
+        }
+
+        public void validate() {
+        }
+    }
+
+    public static class AutoLeaveConfig {
+        public boolean enabled = false;
+        public boolean autoSendNear = true;
+        public int checkIntervalSeconds = 5;
+        public int warningSeconds = 3;
+        public boolean cancelOnMovement = true;
+        public List<String> whitelist = new ArrayList<>();
+
+        public static AutoLeaveConfig defaults() {
+            return new AutoLeaveConfig();
+        }
+
+        public void validate() {
+            checkIntervalSeconds = Math.max(1, Math.min(120, checkIntervalSeconds));
+            warningSeconds = Math.max(0, Math.min(30, warningSeconds));
+            if (whitelist == null) {
+                whitelist = new ArrayList<>();
+            }
+            whitelist.removeIf(name -> name == null || name.isBlank());
+        }
+    }
+
+    public static class ZoomConfig {
+        public boolean enabled = true;
+        public float zoomFactor = 0.30f;
+        public boolean smooth = true;
+        public float animationSpeed = 0.45f;
+
+        public static ZoomConfig defaults() {
+            return new ZoomConfig();
+        }
+
+        public void validate() {
+            zoomFactor = clamp(zoomFactor, 0.05f, 1.0f);
+            animationSpeed = clamp(animationSpeed, 0.05f, 1.0f);
+        }
+    }
+
+    public static class SoundControllerConfig {
+        public boolean enabled = false;
+        public float critVolume = 1.0f;
+        public float attackVolume = 1.0f;
+        public float experienceVolume = 1.0f;
+
+        public static SoundControllerConfig defaults() {
+            return new SoundControllerConfig();
+        }
+
+        public void validate() {
+            critVolume = clamp(critVolume, 0.0f, 2.0f);
+            attackVolume = clamp(attackVolume, 0.0f, 2.0f);
+            experienceVolume = clamp(experienceVolume, 0.0f, 2.0f);
         }
     }
 

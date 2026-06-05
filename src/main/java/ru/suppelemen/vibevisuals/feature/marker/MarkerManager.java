@@ -74,6 +74,34 @@ public final class MarkerManager {
         for (Marker marker : MARKERS) {
             drawMarker(consumer, entry, matrix, camera, marker.pos, config.radius, config.color, config.lineWidth);
         }
+
+        if (config.showDistance) {
+            drawLabels(context, client, camera, config);
+        }
+    }
+
+    private static void drawLabels(WorldRenderContext context, MinecraftClient client,
+                                   Vec3d camera, VibeVisualsConfig.MarkersConfig config) {
+        net.minecraft.client.render.VertexConsumerProvider consumers = context.consumers();
+        net.minecraft.client.render.Camera cam = client.gameRenderer.getCamera();
+        net.minecraft.client.font.TextRenderer tr = client.textRenderer;
+        Vec3d eye = client.player != null ? client.player.getEyePos() : camera;
+        int rgb = config.color & 0x00FFFFFF;
+        for (Marker marker : MARKERS) {
+            double dist = Math.sqrt(marker.pos.squaredDistanceTo(eye));
+            String text = marker.name() + "  " + (int) Math.round(dist) + "m";
+            Vec3d at = marker.pos.add(0.0, config.radius * 2.5, 0.0);
+            MatrixStack m = context.matrices();
+            m.push();
+            m.translate(at.x - camera.x, at.y - camera.y, at.z - camera.z);
+            m.multiply(cam.getRotation());
+            m.scale(-0.025f, -0.025f, 0.025f);
+            Matrix4f mat = m.peek().getPositionMatrix();
+            float tx = -tr.getWidth(net.minecraft.text.Text.literal(text)) / 2.0f;
+            tr.draw(net.minecraft.text.Text.literal(text), tx, 0f, 0xFF000000 | rgb, false, mat,
+                    consumers, net.minecraft.client.font.TextRenderer.TextLayerType.NORMAL, 0, 0xF000F0);
+            m.pop();
+        }
     }
 
     private static void drawMarker(VertexConsumer consumer, MatrixStack.Entry entry, Matrix4f matrix, Vec3d camera, Vec3d pos, float radius, int color, float lineWidth) {
