@@ -14,30 +14,32 @@ import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Block selection highlight. You mark single blocks or whole areas and they get
- * a solid coloured 3D outline. Each mark stores its own colour (taken from the
- * config "nextColor" at creation), so changing the colour only affects future
- * marks. Tell traps / pulls apart by simply using different colours.
+ * Block selection highlight. Marks are stored per-block, so adjacent blocks
+ * merge into a single continuous outline (shared interior edges are not drawn).
+ * Each block remembers the colour it was created with.
  *
- * <p>Controls: HOLD the select key and drag the crosshair to box an area; a
- * quick tap marks the single block you're looking at (tap again to unmark).
- * The remove key deletes whatever selection your crosshair is inside.
- * Fully client-side, no packets.
+ * <p>Controls: HOLD the select key and drag to fill an area; TAP it on a block
+ * to toggle that single block (tap a selected block to unselect just it). The
+ * remove key clears the block under the crosshair, or everything if you're not
+ * aiming at a selected block.
  */
 public final class TrapHighlight {
 
-    public record Selection(BlockPos min, BlockPos max, int color) {
-        boolean contains(BlockPos p) {
-            return p.getX() >= min.getX() && p.getX() <= max.getX()
-                    && p.getY() >= min.getY() && p.getY() <= max.getY()
-                    && p.getZ() >= min.getZ() && p.getZ() <= max.getZ();
-        }
-    }
+    // block -> colour (insertion-ordered for predictable rebuilds)
+    private static final Map<BlockPos, Integer> CELLS = new LinkedHashMap<>();
+    private static final int MAX_CELLS = 20000;
 
-    private static final List<Selection> SELECTIONS = new ArrayList<>();
+    // Cached boundary edges, rebuilt only when the selection changes.
+    private record Edge(double ax, double ay, double az, double bx, double by, double bz, int color) {}
+    private static final List<Edge> EDGES = new ArrayList<>();
+    private static boolean dirty;
 
     // Area-drag state.
     private static boolean dragging;
@@ -50,7 +52,6 @@ public final class TrapHighlight {
 
     // ---- input ----
 
-    /** Drive the select key each tick. {@code down} = key currently held. */
     public static void handleSelectKey(MinecraftClient client, boolean down) {
         BlockPos looked = lookedBlock(client);
         if (down) {
@@ -73,51 +74,59 @@ public final class TrapHighlight {
     }
 
     private static void commit(BlockPos a, BlockPos b) {
-        if (a == null) {
-            a = b;
-        }
-        if (b == null) {
-            b = a;
-        }
-        if (a == null) {
+        if (a == null) a = b;
+        if (b == null) b = a;
+        if (a == null) return;
+
+        int color = VibeVisualsConfigManager.get().trapHighlight.nextColor;
+
+        // Single-block tap toggles that block.
+        if (a.equals(b)) {
+            BlockPos p = a.toImmutable();
+            if (CELLS.remove(p) == null) {
+                CELLS.put(p, color);
+            }
+            dirty = true;
             return;
         }
-        BlockPos min = new BlockPos(Math.min(a.getX(), b.getX()), Math.min(a.getY(), b.getY()), Math.min(a.getZ(), b.getZ()));
-        BlockPos max = new BlockPos(Math.max(a.getX(), b.getX()), Math.max(a.getY(), b.getY()), Math.max(a.getZ(), b.getZ()));
 
-        // Single-block tap toggles: if that exact 1×1 mark exists, remove it.
-        if (min.equals(max)) {
-            for (int i = 0; i < SELECTIONS.size(); i++) {
-                Selection s = SELECTIONS.get(i);
-                if (s.min().equals(min) && s.max().equals(max)) {
-                    SELECTIONS.remove(i);
-                    return;
+        // Area drag adds every block in the cuboid.
+        int minX = Math.min(a.getX(), b.getX()), maxX = Math.max(a.getX(), b.getX());
+        int minY = Math.min(a.getY(), b.getY()), maxY = Math.max(a.getY(), b.getY());
+        int minZ = Math.min(a.getZ(), b.getZ()), maxZ = Math.max(a.getZ(), b.getZ());
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    if (CELLS.size() >= MAX_CELLS) {
+                        dirty = true;
+                        return;
+                    }
+                    CELLS.put(new BlockPos(x, y, z), color);
                 }
             }
         }
-        int color = VibeVisualsConfigManager.get().trapHighlight.nextColor;
-        SELECTIONS.add(new Selection(min, max, color));
+        dirty = true;
     }
 
-    /** Remove whatever selection the crosshair is currently inside. */
+    /** Remove the block under the crosshair; if none selected there, clear all. */
     public static void removeUnderCrosshair(MinecraftClient client) {
         BlockPos looked = lookedBlock(client);
-        if (looked == null) {
+        if (looked != null && CELLS.remove(looked) != null) {
+            dirty = true;
             return;
         }
-        for (int i = SELECTIONS.size() - 1; i >= 0; i--) {
-            if (SELECTIONS.get(i).contains(looked)) {
-                SELECTIONS.remove(i);
-                return;
-            }
+        if (!CELLS.isEmpty()) {
+            CELLS.clear();
+            dirty = true;
         }
     }
 
     public static void clearMarks() {
-        SELECTIONS.clear();
+        CELLS.clear();
         dragging = false;
         dragStart = null;
         dragCurrent = null;
+        dirty = true;
     }
 
     private static BlockPos lookedBlock(MinecraftClient client) {
@@ -128,7 +137,7 @@ public final class TrapHighlight {
         return null;
     }
 
-    // ---- tick (just dimension-change cleanup) ----
+    // ---- tick (dimension-change cleanup) ----
 
     public static void tick(MinecraftClient client) {
         if (client.world == null) {
@@ -141,6 +150,72 @@ public final class TrapHighlight {
         }
     }
 
+    // ---- merged boundary-edge build ----
+
+    private static boolean has(int x, int y, int z) {
+        return CELLS.containsKey(new BlockPos(x, y, z));
+    }
+
+    private static void rebuildEdges() {
+        EDGES.clear();
+        Set<Long> done = new HashSet<>();
+        for (Map.Entry<BlockPos, Integer> e : CELLS.entrySet()) {
+            BlockPos p = e.getKey();
+            int color = e.getValue();
+            int x = p.getX(), y = p.getY(), z = p.getZ();
+            for (int dy = 0; dy <= 1; dy++)
+                for (int dz = 0; dz <= 1; dz++)
+                    tryEdge(done, 0, x, y + dy, z + dz, color);
+            for (int dx = 0; dx <= 1; dx++)
+                for (int dz = 0; dz <= 1; dz++)
+                    tryEdge(done, 1, x + dx, y, z + dz, color);
+            for (int dx = 0; dx <= 1; dx++)
+                for (int dy = 0; dy <= 1; dy++)
+                    tryEdge(done, 2, x + dx, y + dy, z, color);
+        }
+        dirty = false;
+    }
+
+    /** axis: 0=X,1=Y,2=Z. (gx,gy,gz) is the lower grid endpoint of the edge. */
+    private static void tryEdge(Set<Long> done, int axis, int gx, int gy, int gz, int color) {
+        long key = (((long) axis) << 60) ^ pack(gx, gy, gz);
+        if (!done.add(key)) {
+            return;
+        }
+        boolean c00, c01, c10, c11;
+        if (axis == 0) {            // edge along X → vary Y,Z
+            c00 = has(gx, gy - 1, gz - 1); c01 = has(gx, gy - 1, gz);
+            c10 = has(gx, gy, gz - 1);     c11 = has(gx, gy, gz);
+        } else if (axis == 1) {     // edge along Y → vary X,Z
+            c00 = has(gx - 1, gy, gz - 1); c01 = has(gx - 1, gy, gz);
+            c10 = has(gx, gy, gz - 1);     c11 = has(gx, gy, gz);
+        } else {                    // edge along Z → vary X,Y
+            c00 = has(gx - 1, gy - 1, gz); c01 = has(gx - 1, gy, gz);
+            c10 = has(gx, gy - 1, gz);     c11 = has(gx, gy, gz);
+        }
+        int count = (c00 ? 1 : 0) + (c01 ? 1 : 0) + (c10 ? 1 : 0) + (c11 ? 1 : 0);
+        boolean draw;
+        if (count == 1 || count == 3) {
+            draw = true;
+        } else if (count == 2) {
+            draw = (c00 && c11) || (c01 && c10); // diagonal corner only
+        } else {
+            draw = false;
+        }
+        if (!draw) {
+            return;
+        }
+        double ax = gx, ay = gy, az = gz, bx = gx, by = gy, bz = gz;
+        if (axis == 0) bx = gx + 1;
+        else if (axis == 1) by = gy + 1;
+        else bz = gz + 1;
+        EDGES.add(new Edge(ax, ay, az, bx, by, bz, color));
+    }
+
+    private static long pack(int x, int y, int z) {
+        return ((long) (x & 0xFFFFF)) | (((long) (y & 0xFFFFF)) << 20) | (((long) (z & 0xFFFFF)) << 40);
+    }
+
     // ---- render ----
 
     public static void render(WorldRenderContext context) {
@@ -148,50 +223,48 @@ public final class TrapHighlight {
         if (!c.enabled) {
             return;
         }
-        if (SELECTIONS.isEmpty() && !dragging) {
+        if (CELLS.isEmpty() && !dragging) {
             return;
         }
-        MinecraftClient client = MinecraftClient.getInstance();
-        Vec3d cam = client.gameRenderer.getCamera().getCameraPos();
-        MatrixStack.Entry entry = context.matrices().peek();
-        Matrix4f matrix = entry.getPositionMatrix();
-        VertexConsumer quads = context.consumers().getBuffer(RenderLayers.debugQuads());
-
-        for (Selection s : SELECTIONS) {
-            int col = c.rainbow ? rainbow(c, s.min()) : s.color();
-            drawBox(quads, matrix, cam, s.min(), s.max(), col, c.thickness);
+        if (dirty) {
+            rebuildEdges();
         }
 
-        // Live preview of the in-progress drag.
+        MinecraftClient client = MinecraftClient.getInstance();
+        Vec3d cam = client.gameRenderer.getCamera().getCameraPos();
+        Matrix4f matrix = context.matrices().peek().getPositionMatrix();
+        VertexConsumer quads = context.consumers().getBuffer(RenderLayers.debugQuads());
+
+        for (Edge e : EDGES) {
+            int col = c.rainbow ? rainbow(c, e.ax(), e.ay(), e.az()) : e.color();
+            beam(quads, matrix, cam, e.ax(), e.ay(), e.az(), e.bx(), e.by(), e.bz(), col, c.thickness);
+        }
+
         if (dragging && dragStart != null) {
             BlockPos b = dragCurrent != null ? dragCurrent : dragStart;
-            BlockPos min = new BlockPos(Math.min(dragStart.getX(), b.getX()), Math.min(dragStart.getY(), b.getY()), Math.min(dragStart.getZ(), b.getZ()));
-            BlockPos max = new BlockPos(Math.max(dragStart.getX(), b.getX()), Math.max(dragStart.getY(), b.getY()), Math.max(dragStart.getZ(), b.getZ()));
-            int col = c.rainbow ? rainbow(c, min) : c.nextColor;
-            // dim the preview a touch
-            col = (0xB0 << 24) | (col & 0x00FFFFFF);
-            drawBox(quads, matrix, cam, min, max, col, c.thickness);
+            int minX = Math.min(dragStart.getX(), b.getX()), maxX = Math.max(dragStart.getX(), b.getX());
+            int minY = Math.min(dragStart.getY(), b.getY()), maxY = Math.max(dragStart.getY(), b.getY());
+            int minZ = Math.min(dragStart.getZ(), b.getZ()), maxZ = Math.max(dragStart.getZ(), b.getZ());
+            int col = (0xB0 << 24) | (c.nextColor & 0x00FFFFFF);
+            previewBox(quads, matrix, cam, minX, minY, minZ, maxX + 1, maxY + 1, maxZ + 1, col, c.thickness);
         }
     }
 
-    private static void drawBox(VertexConsumer q, Matrix4f matrix, Vec3d cam,
-                                BlockPos min, BlockPos max, int color, float t) {
-        double e = 0.003;
-        double x0 = min.getX() - e, y0 = min.getY() - e, z0 = min.getZ() - e;
-        double x1 = max.getX() + 1 + e, y1 = max.getY() + 1 + e, z1 = max.getZ() + 1 + e;
-        // 4 bottom + 4 top + 4 pillars, each a solid beam.
-        beam(q, matrix, cam, x0, y0, z0, x1, y0, z0, color, t);
-        beam(q, matrix, cam, x1, y0, z0, x1, y0, z1, color, t);
-        beam(q, matrix, cam, x1, y0, z1, x0, y0, z1, color, t);
-        beam(q, matrix, cam, x0, y0, z1, x0, y0, z0, color, t);
-        beam(q, matrix, cam, x0, y1, z0, x1, y1, z0, color, t);
-        beam(q, matrix, cam, x1, y1, z0, x1, y1, z1, color, t);
-        beam(q, matrix, cam, x1, y1, z1, x0, y1, z1, color, t);
-        beam(q, matrix, cam, x0, y1, z1, x0, y1, z0, color, t);
-        beam(q, matrix, cam, x0, y0, z0, x0, y1, z0, color, t);
-        beam(q, matrix, cam, x1, y0, z0, x1, y1, z0, color, t);
-        beam(q, matrix, cam, x1, y0, z1, x1, y1, z1, color, t);
-        beam(q, matrix, cam, x0, y0, z1, x0, y1, z1, color, t);
+    private static void previewBox(VertexConsumer q, Matrix4f matrix, Vec3d cam,
+                                   double x0, double y0, double z0, double x1, double y1, double z1,
+                                   int col, float t) {
+        beam(q, matrix, cam, x0, y0, z0, x1, y0, z0, col, t);
+        beam(q, matrix, cam, x1, y0, z0, x1, y0, z1, col, t);
+        beam(q, matrix, cam, x1, y0, z1, x0, y0, z1, col, t);
+        beam(q, matrix, cam, x0, y0, z1, x0, y0, z0, col, t);
+        beam(q, matrix, cam, x0, y1, z0, x1, y1, z0, col, t);
+        beam(q, matrix, cam, x1, y1, z0, x1, y1, z1, col, t);
+        beam(q, matrix, cam, x1, y1, z1, x0, y1, z1, col, t);
+        beam(q, matrix, cam, x0, y1, z1, x0, y1, z0, col, t);
+        beam(q, matrix, cam, x0, y0, z0, x0, y1, z0, col, t);
+        beam(q, matrix, cam, x1, y0, z0, x1, y1, z0, col, t);
+        beam(q, matrix, cam, x1, y0, z1, x1, y1, z1, col, t);
+        beam(q, matrix, cam, x0, y0, z1, x0, y1, z1, col, t);
     }
 
     /** A solid thick edge: a thin rectangular prism (4 faces) along the edge. */
@@ -205,7 +278,6 @@ public final class TrapHighlight {
         if (a == 0) a = 235;
         float h = t * 0.5f;
 
-        // Perpendicular axes for the (axis-aligned) edge.
         double ux, uy, uz, vx, vy, vz;
         if (Math.abs(bx - ax) > 1e-6) {        // along X
             ux = 0; uy = h; uz = 0; vx = 0; vy = 0; vz = h;
@@ -215,10 +287,7 @@ public final class TrapHighlight {
             ux = h; uy = 0; uz = 0; vx = 0; vy = h; vz = 0;
         }
 
-        // 4 corners of the cross-section at A and at B.
-        double[][] off = {
-                {-1, -1}, {1, -1}, {1, 1}, {-1, 1}
-        };
+        double[][] off = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
         double[][] ca = new double[4][3];
         double[][] cb = new double[4][3];
         for (int i = 0; i < 4; i++) {
@@ -230,7 +299,6 @@ public final class TrapHighlight {
             cb[i][1] = by + uy * su + vy * sv;
             cb[i][2] = bz + uz * su + vz * sv;
         }
-        // 4 side faces (double-sided).
         for (int i = 0; i < 4; i++) {
             int j = (i + 1) % 4;
             face(q, matrix, cam, ca[i], ca[j], cb[j], cb[i], r, g, b, a);
@@ -253,9 +321,9 @@ public final class TrapHighlight {
                 .color(r, g, b, a);
     }
 
-    private static int rainbow(VibeVisualsConfig.TrapHighlightConfig c, BlockPos p) {
+    private static int rainbow(VibeVisualsConfig.TrapHighlightConfig c, double x, double y, double z) {
         double period = 3000.0 / Math.max(0.05f, c.rainbowSpeed);
-        double phase = (p.getX() + p.getY() + p.getZ()) * 0.04;
+        double phase = (x + y + z) * 0.04;
         float hue = (float) (((System.currentTimeMillis() / period) + phase) % 1.0);
         if (hue < 0) hue += 1f;
         return 0xFF000000 | hsvToRgb(hue);

@@ -977,11 +977,15 @@ public class VibeVisualsConfig {
 
     public static class MarkersConfig {
         public boolean enabled = true;
-        public int color = 0xFF7C5CFF;
+        public int color = 0xFF7C5CFF;       // colour of the NEXT marker you place
         public int maxMarkers = 32;
-        public float lineWidth = 3.0f;
-        public float radius = 0.35f;
+        public boolean showName = true;
         public boolean showDistance = true;
+        public boolean throughWalls = true;   // visible through terrain (Xaero-style)
+        public float iconScale = 1.0f;         // on-screen size multiplier
+        public boolean beam = false;           // vertical beacon beam
+        public float beamHeight = 24.0f;
+        public float lineWidth = 3.0f;
 
         public static MarkersConfig defaults() {
             return new MarkersConfig();
@@ -989,8 +993,9 @@ public class VibeVisualsConfig {
 
         public void validate() {
             maxMarkers = Math.max(1, Math.min(128, maxMarkers));
+            iconScale = clamp(iconScale, 0.3f, 4.0f);
+            beamHeight = clamp(beamHeight, 1.0f, 320.0f);
             lineWidth = clamp(lineWidth, 1.0f, 10.0f);
-            radius = clamp(radius, 0.05f, 2.0f);
         }
     }
 
