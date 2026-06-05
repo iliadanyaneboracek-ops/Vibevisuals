@@ -4,19 +4,14 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import net.minecraft.util.Util;
+import ru.suppelemen.vibevisuals.VibeVisualsClient;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.core.hud.HudManager;
-import ru.suppelemen.vibevisuals.feature.keybind.MultiKeyBinding;
 import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
-import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
 import ru.suppelemen.vibevisuals.theme.MenuTheme;
+import ru.suppelemen.vibevisuals.util.font.SmoothText;
 import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 
 import java.lang.reflect.Field;
@@ -27,1306 +22,2654 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+/**
+ * Liquid-glass ClickGUI with drill-down navigation.
+ *
+ * Layout:
+ *   ┌──────────────────────────────────┐
+ *   │ <   vibevisuals                  │
+ *   ├──────────┬───────────────────────┤
+ *   │ Visuals  │  Sky Color       [⏵ ●]│   ← list view
+ *   │ HUD      │  Fog Color       [⏵ ●]│
+ *   │ Utilities│  ...                  │
+ *   │ PvP      │                       │
+ *   │ Menu     │                       │
+ *   └──────────┴───────────────────────┘
+ *
+ * Clicking a module row drills into a settings page that slides in from the
+ * right.  A < Back chevron at the top of that page returns to the list.
+ */
 public class VibeVisualsMenuScreen extends Screen {
 
-    private static final int CARD_HEIGHT = 26;
-    private static final int CARD_GAP = 8;
-    private static final int HEADER_HEIGHT = 56;
-    private static final int DOCK_HEIGHT = 36;
-    private static final int SCROLLBAR_WIDTH = 3;
+    // Reference frame.
+    private static final float REFERENCE_WIDTH = 1920.0f;
+    private static final float REFERENCE_HEIGHT = 1080.0f;
 
-    private final HudVisualSettings windowSettings = new HudVisualSettings();
-    private final HudVisualSettings sidePanelSettings = new HudVisualSettings();
+    // Typography (design px).
+    private static final float TEXT_TITLE = 14.0f;
+    private static final float TEXT_BRAND = 18.0f;
+    private static final float TEXT_BRAND_V = 22.0f;
+    private static final float TEXT_CATEGORY = 13.0f;
+    /** Section headers (MODULES, SYSTEM) — tiny captions, ~half of body. */
+    private static final float TEXT_SECTION = 3.5f;
+    private static final float TEXT_ROW = 12.5f;
+    private static final float TEXT_ROW_SUB = 8.5f;
+    private static final float TEXT_DETAIL_TITLE = 18.0f;
+    private static final float TEXT_DETAIL_LABEL = 11.5f;
+    private static final float TEXT_BACK = 11.5f;
+
+    // Brand block above the panel.
+    private static final int BRAND_ICON = 60;
+    private static final int BRAND_GAP_X = 12;
+    private static final int BRAND_BOTTOM_GAP = 16;
+
+    // Panel layout (design px).
+    private static final int PANEL_W = 624;
+    private static final int PANEL_H = 384;
+    private static final int PANEL_RADIUS = 24;
+    private static final int HEADER_H = 44;
+    private static final int SIDEBAR_W = 168;
+    private static final int SIDEBAR_ROW_H = 24;
+    private static final int SIDEBAR_ROW_RADIUS = 8;
+    private static final int SIDEBAR_PILL_PAD = 8;
+    private static final int SECTION_HEADER_GAP = 22;
+    private static final int CATEGORY_ICON = 16;
+    private static final int CATEGORY_ICON_GAP = 10;
+    private static final int PAD_X = 18;
+
+    // Module list rows (right side).
+    private static final int ROW_H = 46;
+    private static final int ROW_GAP = 1;
+    private static final int ROW_RADIUS = 10;
+    private static final int ROW_PAD_X = 14;
+
+    // Apple-style switch — iOS-ish 1.78:1 ratio, large enough that the SDF
+    // rounded-box shader has room to anti-alias the corners cleanly.
+    private static final int SWITCH_W = 34;
+    private static final int SWITCH_H = 19;
+
+    // Search bar (top of right pane).
+    private static final int SEARCH_H = 28;
+    private static final int SEARCH_RADIUS = 12;
+    private static final int SEARCH_PAD_TOP = 10;
+    private static final int SEARCH_PAD_BOT = 10;
+    private static final int SEARCH_PAD_X = 12;
+    private static final float TEXT_SEARCH = 11.0f;
+
+    // Separator opacities.
+    private static final float SEPARATOR_ALPHA_HEADER = 0.04f;
+    private static final float SEPARATOR_ALPHA_SIDEBAR = 0.06f;
+    private static final float SECTION_HEADER_ALPHA = 0.35f;
+
     private final List<FeatureEntry> features = new ArrayList<>();
-    private final List<SettingEntry> settingEntries = new ArrayList<>();
-
-    private TextFieldWidget searchField;
-
-    private Category selectedCategory = Category.VISUALS;
-    private String searchQuery = "";
-
-    private int scroll;
-    private int maxScroll;
-    private int gridContentHeight;
-
-    private FeatureEntry hoveredFeature;
-    private FeatureEntry settingsTarget;
-    private Side settingsSide = Side.RIGHT;
-    private int sidePanelHeight;
-    private int settingsScroll;
-    private float sideSlideProgress;
-
-    private SettingEntry hoveredSettingEntry;
-    private SettingEntry activeColorEntry;
-    private int pickerX;
-    private int pickerY;
-    private int pickerWidth;
-    private int pickerHeight;
-
-    private int hoveredDockIndex = -1;
-    private int hoveredCategoryIndex = -1;
+    private final List<SettingRow> detailSettings = new ArrayList<>();
 
     private long openedAtMs;
-    private float openProgress;
+
+    private Category selected = Category.VISUALS;
+    private int hoveredCategoryIndex = -1;
+    private boolean hoveredBack;
+
+    private FeatureEntry hoveredRow;
+    private boolean hoveredOnSwitch;
+    private FeatureEntry detailTarget;       // null → list view
+    private float detailSlide;               // 0..1 — animates list↔detail transition
+    private boolean hoveredDetailBack;
+    private SettingRow hoveredSettingRow;
+
+    private int contentScroll;
+    private int contentMaxScroll;
+
+    /** Setting row currently being dragged via slider thumb (null when idle). */
+    private SettingRow draggingSlider;
+
+    // ---- Colour picker popup state (open when colorRow != null) ----
+    private SettingRow colorRow;
+    private FeatureEntry colorTarget;
+    private float pkH, pkS, pkV, pkA = 1f;     // current HSVA being edited
+    private int colorDrag;                       // 0 none, 1 SV square, 2 hue bar, 3 alpha bar
+    private int pkSvX, pkSvY, pkSvSize, pkHueX, pkAlphaX, pkBarW, pkBarH; // last-drawn geometry
+
+    /** Index of the theme tile currently hovered in the Themes detail view. */
+    private int hoveredThemeIndex = -1;
+
+    /** Top-level view: outer rail on the left switches between these. */
+    private enum AppView { SETTINGS, CONFIGURATIONS }
+    private AppView currentView = AppView.SETTINGS;
+    private int hoveredRailIndex = -1;
+
+    /** App-rail (left-most strip) layout — compact dock, +15 % over baseline. */
+    private static final int RAIL_W = 39;
+    private static final int RAIL_GAP = 10;        // gap from main panel
+    private static final int RAIL_BTN = 30;
+    private static final int RAIL_BTN_RADIUS = 8;
+    private static final int RAIL_RADIUS = 14;
+    private static final int RAIL_PAD_Y = 5;
+    private static final int RAIL_BTN_GAP = 5;
+    private static final int RAIL_ICON = 15;
+
+    // Search bar state.
+    private String searchQuery = "";
+    private boolean searchFocused;
+    private int searchX, searchY, searchW, searchH;
+    private boolean hoveredSearchClear;
+    private boolean hoveredSearchBox;
+    private float searchFocusAnim; // 0..1 — animates the focus ring
 
     public VibeVisualsMenuScreen() {
         super(Text.literal("VibeVisuals"));
-        windowSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        windowSettings.radius = MenuTheme.RADIUS_WINDOW;
-        windowSettings.opacity = 0.94f;
-        sidePanelSettings.renderType = HudCardRenderType.LIQUID_GLASS;
-        sidePanelSettings.radius = MenuTheme.RADIUS_WINDOW;
-        sidePanelSettings.opacity = 0.94f;
     }
 
     @Override
     protected void init() {
+        MenuTheme.applyTheme(VibeVisualsConfigManager.get().menu.theme);
         rebuildFeatures();
-        ensureSelectedCategoryHasEntries();
         openedAtMs = System.currentTimeMillis();
-
-        int windowW = windowWidth();
-        int windowX = windowX();
-        int windowY = windowY();
-
-        searchField = new TextFieldWidget(textRenderer, windowX + windowW - 144, windowY + 30, 124, 14, Text.literal("search"));
-        searchField.setDrawsBackground(false);
-        searchField.setEditableColor(MenuTheme.TEXT_PRIMARY);
-        searchField.setUneditableColor(MenuTheme.TEXT_MUTED);
-        searchField.setMaxLength(48);
-        searchField.setPlaceholder(Text.literal("Поиск"));
-        searchField.setChangedListener(value -> {
-            searchQuery = value == null ? "" : value;
-            scroll = 0;
-        });
-        addDrawableChild(searchField);
     }
 
     private void rebuildFeatures() {
-        VibeVisualsConfig config = VibeVisualsConfigManager.get();
+        VibeVisualsConfig c = VibeVisualsConfigManager.get();
         features.clear();
-        features.add(new FeatureEntry(Category.HUD, "Potions", () -> config.potionsCard.enabled, value -> config.potionsCard.enabled = value, config.potionsCard));
-        features.add(new FeatureEntry(Category.HUD, "Cooldowns", () -> config.cooldownsCard.enabled, value -> config.cooldownsCard.enabled = value, config.cooldownsCard));
-        features.add(new FeatureEntry(Category.HUD, "Hot Keys", () -> config.hotKeysCard.enabled, value -> config.hotKeysCard.enabled = value, config.hotKeysCard));
-        features.add(new FeatureEntry(Category.HUD, "Top Bar", () -> config.topBar.enabled, value -> config.topBar.enabled = value, config.topBar));
-        features.add(new FeatureEntry(Category.HUD, "Inventory HUD", () -> config.inventoryHud.enabled, value -> config.inventoryHud.enabled = value, config.inventoryHud));
-        features.add(new FeatureEntry(Category.HUD, "Armor HUD", () -> config.armorHud.enabled, value -> config.armorHud.enabled = value, config.armorHud));
-        features.add(new FeatureEntry(Category.HUD, "Custom Hotbar", () -> config.hotbar.enabled, value -> config.hotbar.enabled = value, config.hotbar));
-        features.add(new FeatureEntry(Category.HUD, "Slot Timers", () -> config.slotTimers.enabled, value -> config.slotTimers.enabled = value, config.slotTimers));
-        features.add(new FeatureEntry(Category.PVP, "PvP Combat", () -> config.pvpCard.enabled, value -> config.pvpCard.enabled = value, config.pvpCard));
-        features.add(new FeatureEntry(Category.PVP, "Target ESP", () -> config.targetEsp.enabled, value -> config.targetEsp.enabled = value, config.targetEsp));
-        features.add(new FeatureEntry(Category.PVP, "Saturation", () -> config.saturationDisplay.enabled, value -> config.saturationDisplay.enabled = value, config.saturationDisplay));
-        features.add(new FeatureEntry(Category.PVP, "Crit Hit Sound", () -> config.customHitSound.enabled, value -> config.customHitSound.enabled = value, config.customHitSound));
-        features.add(new FeatureEntry(Category.PVP, "Shift Up", () -> config.shiftUp.enabled, value -> config.shiftUp.enabled = value, config.shiftUp));
-        features.add(new FeatureEntry(Category.PVP, "Healing Helper", () -> config.healingHelper.enabled, value -> config.healingHelper.enabled = value, config.healingHelper));
-        features.add(new FeatureEntry(Category.PVP, "PvP Quit Guard", () -> config.pvpQuitGuard.enabled, value -> config.pvpQuitGuard.enabled = value, config.pvpQuitGuard));
-        features.add(new FeatureEntry(Category.PVP, "Totem Counter", () -> config.totemCounter.enabled, value -> config.totemCounter.enabled = value, config.totemCounter));
-        features.add(new FeatureEntry(Category.PVP, "Sound Controller", () -> config.soundController.enabled, value -> config.soundController.enabled = value, config.soundController));
-        features.add(new FeatureEntry(Category.VISUALS, "Sky Color", () -> config.visualEffects.skyColorEnabled, value -> config.visualEffects.skyColorEnabled = value, config.visualEffects));
-        features.add(new FeatureEntry(Category.VISUALS, "Fog Color", () -> config.visualEffects.fogColorEnabled, value -> config.visualEffects.fogColorEnabled = value, config.visualEffects));
-        features.add(new FeatureEntry(Category.VISUALS, "Particles", () -> config.visualEffects.customParticlesEnabled, value -> config.visualEffects.customParticlesEnabled = value, config.visualEffects));
-        features.add(new FeatureEntry(Category.VISUALS, "Screen Fire", () -> config.fireOverlay.enabled, value -> config.fireOverlay.enabled = value, config.fireOverlay));
-        features.add(new FeatureEntry(Category.VISUALS, "Crosshair", () -> config.customCrosshair.enabled, value -> config.customCrosshair.enabled = value, config.customCrosshair));
-        features.add(new FeatureEntry(Category.VISUALS, "Custom Hand", () -> config.customHand.enabled, value -> config.customHand.enabled = value, config.customHand));
-        features.add(new FeatureEntry(Category.UTILITIES, "Projectile Path", () -> config.projectilePrediction.enabled, value -> config.projectilePrediction.enabled = value, config.projectilePrediction));
-        features.add(new FeatureEntry(Category.UTILITIES, "HUD Animations", () -> config.hudAnimations.enabled, value -> config.hudAnimations.enabled = value, config.hudAnimations));
-        features.add(new FeatureEntry(Category.EVENTS, "Markers", () -> config.markers.enabled, value -> config.markers.enabled = value, config.markers));
-        features.add(new FeatureEntry(Category.EVENTS, "Death Marker", () -> config.deathMarker.enabled, value -> config.deathMarker.enabled = value, config.deathMarker));
-        features.add(new FeatureEntry(Category.EVENTS, "Chat Events", () -> config.chatEvents.enabled, value -> config.chatEvents.enabled = value, config.chatEvents));
-        features.add(new FeatureEntry(Category.UTILITIES, "AutoEat", () -> config.autoEat.enabled, value -> config.autoEat.enabled = value, config.autoEat));
-        features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion", () -> config.autoPotion.enabled, value -> config.autoPotion.enabled = value, config.autoPotion));
-        features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn", () -> config.autoRespawn.enabled, value -> config.autoRespawn.enabled = value, config.autoRespawn));
-        features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse", () -> config.tapeMouse.enabled, value -> config.tapeMouse.enabled = value, config.tapeMouse));
-        features.add(new FeatureEntry(Category.UTILITIES, "Streamer Mode", () -> config.streamerMode.enabled, value -> config.streamerMode.enabled = value, config.streamerMode));
-        features.add(new FeatureEntry(Category.UTILITIES, "AutoLeave", () -> config.autoLeave.enabled, value -> config.autoLeave.enabled = value, config.autoLeave));
-        features.add(new FeatureEntry(Category.UTILITIES, "Zoom", () -> config.zoom.enabled, value -> config.zoom.enabled = value, config.zoom));
-        features.add(new FeatureEntry(Category.UTILITIES, "FullBright", () -> config.fullBrightStrength > 0.0f, value -> config.fullBrightStrength = value ? Math.max(0.6f, config.fullBrightStrength) : 0.0f, config));
-        features.add(new FeatureEntry(Category.MENU, "Menu Settings", () -> config.menu.enabled, value -> config.menu.enabled = value, config.menu));
+        features.add(new FeatureEntry(Category.HUD, "Potions",        "Active potion effects",       "Активные эффекты зелий", ModuleIcon.POTION,
+                () -> c.potionsCard.enabled,    v -> c.potionsCard.enabled = v, c.potionsCard));
+        features.add(new FeatureEntry(Category.HUD, "Cooldowns",      "Ability cooldown timers",     "Таймеры перезарядок умений", ModuleIcon.CLOCK,
+                () -> c.cooldownsCard.enabled,  v -> c.cooldownsCard.enabled = v, c.cooldownsCard));
+        features.add(new FeatureEntry(Category.HUD, "Hot Keys",       "On-screen keybind hints",     "Подсказки клавиш на экране", ModuleIcon.KEY,
+                () -> c.hotKeysCard.enabled,    v -> c.hotKeysCard.enabled = v, c.hotKeysCard));
+        features.add(new FeatureEntry(Category.HUD, "Top Bar",        "Stats bar across the top",    "Полоса статов сверху", ModuleIcon.BAR,
+                () -> c.topBar.enabled,         v -> c.topBar.enabled = v, c.topBar));
+        features.add(new FeatureEntry(Category.HUD, "Inventory HUD",  "Inventory preview overlay",   "Превью инвентаря на HUD", ModuleIcon.GRID,
+                () -> c.inventoryHud.enabled,   v -> c.inventoryHud.enabled = v, c.inventoryHud));
+        features.add(new FeatureEntry(Category.HUD, "Armor HUD",      "Armor durability + pieces",   "Прочность и список брони", ModuleIcon.SHIELD,
+                () -> c.armorHud.enabled,       v -> c.armorHud.enabled = v, c.armorHud));
+        features.add(new FeatureEntry(Category.HUD, "Custom Hotbar",  "Sleek replacement hotbar",    "Свой минималистичный хотбар", ModuleIcon.HOTBAR,
+                () -> c.hotbar.enabled,         v -> c.hotbar.enabled = v, c.hotbar));
+        features.add(new FeatureEntry(Category.HUD, "Healing Helper", "Highlights best heal item",   "Подсветка лучшей лечилки", ModuleIcon.HEART,
+                () -> c.healingHelper.enabled,  v -> c.healingHelper.enabled = v, c.healingHelper));
+        features.add(new FeatureEntry(Category.HUD, "Slot Timers",    "Per-slot use cooldowns",      "Таймеры по слотам хотбара", ModuleIcon.CLOCK,
+                () -> c.slotTimers.enabled,     v -> c.slotTimers.enabled = v, c.slotTimers));
+        features.add(new FeatureEntry(Category.PVP, "PvP Combat",     "Combat status + opponent info","Состояние боя и инфа о цели", ModuleIcon.SWORD,
+                () -> c.pvpCard.enabled,        v -> c.pvpCard.enabled = v, c.pvpCard));
+        features.add(new FeatureEntry(Category.PVP, "Mogged",         "Banner + sound when you mog", "Баннер и звук после хита", ModuleIcon.CROWN,
+                () -> c.mogged.enabled,         v -> c.mogged.enabled = v, c.mogged));
+        features.add(new FeatureEntry(Category.PVP, "Target ESP",     "Outline ring around target",  "Кольцо-обводка вокруг цели", ModuleIcon.TARGET,
+                () -> c.targetEsp.enabled,      v -> c.targetEsp.enabled = v, c.targetEsp));
+        features.add(new FeatureEntry(Category.PVP, "Mace Shockwave", "Ripple on mace smash hit",    "Волна при ударе булавой", ModuleIcon.SPARK,
+                () -> c.maceShockwave.enabled,  v -> c.maceShockwave.enabled = v, c.maceShockwave));
+        features.add(new FeatureEntry(Category.PVP, "Totem Counter",  "Count totem pops to chat",    "Счётчик попсов тотема", ModuleIcon.CROWN,
+                () -> c.totemCounter.enabled,   v -> c.totemCounter.enabled = v, c.totemCounter));
+        features.add(new FeatureEntry(Category.PVP, "Quit Guard",     "Confirm quitting during PvP", "Защита от выхода в бою", ModuleIcon.SHIELD,
+                () -> c.pvpQuitGuard.enabled,   v -> c.pvpQuitGuard.enabled = v, c.pvpQuitGuard));
+        features.add(new FeatureEntry(Category.PVP, "Damage Numbers", "Floating damage on hit",      "Всплывающие цифры урона", ModuleIcon.SWORD,
+                () -> c.damageIndicators.enabled, v -> c.damageIndicators.enabled = v, c.damageIndicators));
+        features.add(new FeatureEntry(Category.PVP, "Kill Effect",    "Burst when a target dies",    "Эффект при убийстве", ModuleIcon.SPARK,
+                () -> c.killEffect.enabled,       v -> c.killEffect.enabled = v, c.killEffect));
+        features.add(new FeatureEntry(Category.PVP, "Saturation",     "Show hunger saturation",      "Показ скрытой сатурации", ModuleIcon.DROP,
+                () -> c.saturationDisplay.enabled, v -> c.saturationDisplay.enabled = v, c.saturationDisplay));
+        features.add(new FeatureEntry(Category.PVP, "Crit Hit Sound", "Custom crit sound on hit",    "Свой звук удара по криту", ModuleIcon.SPARK,
+                () -> c.customHitSound.enabled, v -> c.customHitSound.enabled = v, c.customHitSound));
+        features.add(new FeatureEntry(Category.PVP, "Shift Up",       "Snap shift after crit",       "Авто-шифт после крита", ModuleIcon.ARROW_UP,
+                () -> c.shiftUp.enabled,        v -> c.shiftUp.enabled = v, c.shiftUp));
+        features.add(new FeatureEntry(Category.VISUALS, "Sky Color",   "Tint sky by biome",          "Окраска неба по биому", ModuleIcon.CLOUD,
+                () -> c.visualEffects.skyColorEnabled,        v -> c.visualEffects.skyColorEnabled = v, c.visualEffects));
+        features.add(new FeatureEntry(Category.VISUALS, "Fog Color",   "Recolor fog",                "Перекраска тумана", ModuleIcon.FOG,
+                () -> c.visualEffects.fogColorEnabled,        v -> c.visualEffects.fogColorEnabled = v, c.visualEffects));
+        features.add(new FeatureEntry(Category.VISUALS, "Particles",   "Custom ambient particles",   "Свои фоновые частицы", ModuleIcon.SPARK,
+                () -> c.visualEffects.customParticlesEnabled, v -> c.visualEffects.customParticlesEnabled = v, c.visualEffects));
+        features.add(new FeatureEntry(Category.VISUALS, "Screen Fire", "Fire overlay when burning",  "Огненный оверлей при горении", ModuleIcon.FLAME,
+                () -> c.fireOverlay.enabled,                  v -> c.fireOverlay.enabled = v, c.fireOverlay));
+        features.add(new FeatureEntry(Category.VISUALS, "Crosshair",   "Custom crosshair style",     "Свой стиль прицела", ModuleIcon.CROSSHAIR,
+                () -> c.customCrosshair.enabled,              v -> c.customCrosshair.enabled = v, c.customCrosshair));
+        features.add(new FeatureEntry(Category.VISUALS, "Custom Hand", "Reposition first-person hand","Положение руки от первого лица", ModuleIcon.HAND,
+                () -> c.customHand.enabled,                   v -> c.customHand.enabled = v, c.customHand));
+        features.add(new FeatureEntry(Category.VISUALS, "Codex Wheelchair", "Client-side Codex wheelchair cosmetic", "Косметика Codex в кресле-коляске", ModuleIcon.ACCESSIBILITY,
+                () -> c.codexWheelchair.enabled,              v -> c.codexWheelchair.enabled = v, c.codexWheelchair));
+        features.add(new FeatureEntry(Category.VISUALS, "China Hat", "Conical hat cosmetic, any colour", "Конусная шляпа любого цвета", ModuleIcon.ACCESSIBILITY,
+                () -> c.chinaHat.enabled,                     v -> c.chinaHat.enabled = v, c.chinaHat));
+        features.add(new FeatureEntry(Category.UTILITIES, "Projectile Path", "Predict arrow trajectory","Прогноз траектории снарядов", ModuleIcon.CURVE,
+                () -> c.projectilePrediction.enabled, v -> c.projectilePrediction.enabled = v, c.projectilePrediction));
+        features.add(new FeatureEntry(Category.UTILITIES, "HUD Animations",  "Smooth HUD transitions","Плавные анимации HUD", ModuleIcon.WAVE,
+                () -> c.hudAnimations.enabled,        v -> c.hudAnimations.enabled = v, c.hudAnimations));
+        features.add(new FeatureEntry(Category.UTILITIES, "Markers",         "World-space waypoints (N)", "Маркеры в мире (N)", ModuleIcon.PIN,
+                () -> c.markers.enabled,              v -> c.markers.enabled = v, c.markers));
+        features.add(new FeatureEntry(Category.UTILITIES, "Block Select",    "Mark blocks/areas (hold G, V removes)", "Выделение блоков/области (зажми G, V убирает)", ModuleIcon.TARGET,
+                () -> c.trapHighlight.enabled,        v -> c.trapHighlight.enabled = v, c.trapHighlight));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoEat",         "Auto-eat when low hunger","Автоматическая еда", ModuleIcon.APPLE,
+                () -> c.autoEat.enabled,              v -> c.autoEat.enabled = v, c.autoEat));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoPotion",      "Auto-drink potions",    "Автоматические зелья", ModuleIcon.POTION,
+                () -> c.autoPotion.enabled,           v -> c.autoPotion.enabled = v, c.autoPotion));
+        features.add(new FeatureEntry(Category.UTILITIES, "AutoRespawn",     "Skip respawn screen",   "Авто-респавн", ModuleIcon.REFRESH,
+                () -> c.autoRespawn.enabled,          v -> c.autoRespawn.enabled = v, c.autoRespawn));
+        features.add(new FeatureEntry(Category.UTILITIES, "Tape Mouse",      "Hold-to-attack tape",   "Залипание клавиши мыши", ModuleIcon.LINK,
+                () -> c.tapeMouse.enabled,            v -> c.tapeMouse.enabled = v, c.tapeMouse));
+        features.add(new FeatureEntry(Category.UTILITIES, "Pickup Logger",   "Log items you pick up", "Логирование подбора предметов", ModuleIcon.GRID,
+                () -> c.itemPickupLogger.enabled,     v -> c.itemPickupLogger.enabled = v, c.itemPickupLogger));
+        features.add(new FeatureEntry(Category.UTILITIES, "Lock Slot",       "Lock hotbar slots from drop/click", "Защита слотов хотбара", ModuleIcon.LINK,
+                () -> c.lockSlot.enabled,             v -> c.lockSlot.enabled = v, c.lockSlot));
+        features.add(new FeatureEntry(Category.UTILITIES, "Zoom",            "Hold-to-zoom (C)", "Зум по зажатию (C)", ModuleIcon.TARGET,
+                () -> c.zoom.enabled,                 v -> c.zoom.enabled = v, c.zoom));
+        features.add(new FeatureEntry(Category.UTILITIES, "Streamer Mode",   "Hide coords/name from F3", "Скрыть коорд./ник из F3", ModuleIcon.SHIELD,
+                () -> c.streamerMode.enabled,         v -> c.streamerMode.enabled = v, c.streamerMode));
+        features.add(new FeatureEntry(Category.UTILITIES, "Auto Leave",      "Leave when a player is near", "Авто-выход при игроке рядом", ModuleIcon.ARROW_UP,
+                () -> c.autoLeave.enabled,            v -> c.autoLeave.enabled = v, c.autoLeave));
+        features.add(new FeatureEntry(Category.UTILITIES, "Sound Control",   "Per-sound volume control", "Громкость отдельных звуков", ModuleIcon.SPARK,
+                () -> c.soundController.enabled,       v -> c.soundController.enabled = v, c.soundController));
+        features.add(new FeatureEntry(Category.UTILITIES, "Full Bright",    "Max brightness everywhere","Полная яркость везде", ModuleIcon.SUN,
+                () -> c.fullBrightStrength > 0.0f,
+                v -> c.fullBrightStrength = v ? Math.max(0.6f, c.fullBrightStrength) : 0.0f, c));
+        features.add(new FeatureEntry(Category.MENU, "Liquid Glass Blur", "Frosted background blur", "Размытие фона как у стекла", ModuleIcon.BLUR,
+                () -> c.menu.liquidGlassBlur, v -> c.menu.liquidGlassBlur = v, c.menu));
+        // Light Theme was removed — single dark palette is the canonical look.
+        // Themes — drill-down detail (handled by renderDetail's special branch).
+        features.add(new FeatureEntry(Category.MENU, "Themes",            "Pick an accent palette", "Выбор цвета акцентов", ModuleIcon.THEME,
+                () -> false, v -> {}, null));
+        // (The old "Profiles" SYSTEM row was removed — profile sharing now
+        //  lives in the dedicated CONFIGURATIONS view on the app-rail.)
     }
 
-    private void ensureSelectedCategoryHasEntries() {
-        for (Category category : Category.values()) {
-            if (hasAnyFeature(category)) {
-                if (!hasAnyFeature(selectedCategory)) {
-                    selectedCategory = category;
+    // ---------- App-rail (outer view switcher) ----------
+
+    /** Per-view hover animation progress (0..1). Same length as {@link AppView}. */
+    private final float[] railHoverAnim = new float[AppView.values().length];
+
+    /** Compact vertical icon dock to the left of the main panel.
+     *
+     *  Tone-down pass: no accent colour, no neon. Active state is a quietly
+     *  elevated glass card with a brighter icon — same vocabulary the main
+     *  panel's category sidebar uses, so the rail feels like part of the
+     *  same UI rather than a foreign control.
+     *
+     *  Per-button states (lerp-animated):
+     *   - inactive: subtle outline ring, dim neutral icon
+     *   - hover  : ring brightens + faint glass tint + brighter icon
+     *   - active : elevated glass card + primary-coloured icon (no fill colour)
+     *
+     *  Architecture supports N items — append to {@link AppView} and route in
+     *  {@link #drawAppRailIcon}; layout reflows automatically.
+     */
+    private void renderAppRail(DrawContext ctx, int mx, int my, float eased,
+                                int panelX, int panelY, int panelH) {
+        int btn = dp(RAIL_BTN);
+        int gap = dp(RAIL_BTN_GAP);
+        int padY = dp(RAIL_PAD_Y);
+        int count = AppView.values().length;
+        int totalH = padY * 2 + btn * count + gap * (count - 1);
+        int railW = dp(RAIL_W);
+        int railX = panelX - dp(RAIL_GAP) - railW;
+        int railY = panelY + (panelH - totalH) / 2;
+
+        // Rail host — 9-slice texture card (NOT the SDF shader). The shader's
+        // SDF AA is tuned for ~square aspect ratios; the rail is much taller
+        // than wide (aspect ~0.5) and that produces visible corner stepping.
+        // The 9-slice path bakes corner AA into the PNG, so it stays clean at
+        // any aspect.
+        HudCardRenderer.drawOverlayCard(ctx, railX, railY, railW, totalH,
+                dp(RAIL_RADIUS),
+                MenuTheme.MATERIAL_PANEL,
+                MenuTheme.MATERIAL_OPACITY_PANEL * eased);
+
+        hoveredRailIndex = -1;
+        AppView[] views = AppView.values();
+        // +dp(1) nudge — visually compensates for the SDF card's slight
+        // left-bias at small radii.
+        int btnX = railX + (railW - btn) / 2 + dp(1);
+        int cursorY = railY + padY;
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+
+        for (int i = 0; i < count; i++) {
+            AppView v = views[i];
+            int by = cursorY;
+            boolean hover = mx >= btnX && mx <= btnX + btn && my >= by && my <= by + btn;
+            boolean active = currentView == v;
+            if (hover) hoveredRailIndex = i;
+
+            railHoverAnim[i] += (((hover && !active) ? 1f : 0f) - railHoverAnim[i]) * 0.22f;
+            float hoverProgress = railHoverAnim[i];
+
+            int btnRadius = dp(RAIL_BTN_RADIUS);
+
+            if (active) {
+                // ---- ACTIVE: quietly elevated glass card, no colour accent ----
+                // Same vocabulary as the main panel's active category pill.
+                float activeOpacity = light
+                        ? MenuTheme.MATERIAL_OPACITY_CARD * 0.85f
+                        : MenuTheme.MATERIAL_OPACITY_CARD + 0.18f;
+                drawSdfCard(ctx, btnX, by, btn, btn, btnRadius, activeOpacity * eased);
+                HudCardRenderer.drawShaderOutline(ctx, btnX, by, btn, btn, btnRadius,
+                        0.5f, (light ? 0.20f : 0.22f) * eased);
+            } else {
+                // ---- INACTIVE / HOVER: outline ring + (on hover) glass fill ----
+                if (hoverProgress > 0.02f) {
+                    drawSdfCard(ctx, btnX, by, btn, btn, btnRadius,
+                            (MenuTheme.MATERIAL_OPACITY_CARD * (light ? 0.35f : 0.45f))
+                                    * hoverProgress * eased);
                 }
-                break;
+                float ringAlpha = (light ? 0.14f : 0.16f)
+                        + hoverProgress * (light ? 0.16f : 0.18f);
+                HudCardRenderer.drawShaderOutline(ctx, btnX, by, btn, btn, btnRadius,
+                        0.5f, ringAlpha * eased);
+            }
+
+            // Icon — fixed dp size so it stays consistent across themes/scales.
+            int iconSize = dp(RAIL_ICON);
+            int iconX = btnX + (btn - iconSize) / 2;
+            int iconY = by + (btn - iconSize) / 2;
+            float iconAlpha;
+            int iconBase;
+            if (active) {
+                // Active rail icon — tinted accent.
+                iconBase = MenuTheme.ACCENT_USER;
+                iconAlpha = 1.0f;
+            } else {
+                iconBase = MenuTheme.TEXT_NEUTRAL;
+                iconAlpha = 0.55f + hoverProgress * 0.30f;
+            }
+            drawAppRailIcon(ctx, v, iconX, iconY, iconSize,
+                    MenuTheme.withAlpha(iconBase, iconAlpha * eased));
+
+            cursorY += btn + gap;
+        }
+    }
+
+    /** Minimalist icons for the app-rail. Same primitives style as the module icons. */
+    private void drawAppRailIcon(DrawContext ctx, AppView v, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = (color & 0x00FFFFFF) | 0xFF000000;
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        switch (v) {
+            case SETTINGS -> {
+                // Gear — outer ring + 4 teeth + central hub.
+                int ringInset = Math.max(1, size / 8);
+                HudCardRenderer.drawShaderOutline(ctx,
+                        x + ringInset, y + ringInset,
+                        size - ringInset * 2, size - ringInset * 2,
+                        (size - ringInset * 2) / 2.0f, 1.4f, alpha);
+                int tooth = Math.max(2, size / 5);
+                int tw = Math.max(2, size / 5);
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y,
+                        tw, tooth, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y + size - tooth,
+                        tw, tooth, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x, cy - tw / 2,
+                        tooth, tw, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - tooth, cy - tw / 2,
+                        tooth, tw, 0.5f, rgb, alpha);
+                int hub = Math.max(3, size / 4);
+                HudCardRenderer.drawOverlayCard(ctx, cx - hub / 2, cy - hub / 2,
+                        hub, hub, hub / 2.0f, rgb, alpha);
+            }
+            case CONFIGURATIONS -> {
+                // Stacked horizontal cards — "profiles / saved configs" idea.
+                int cardH = Math.max(2, size / 5);
+                int gap = Math.max(1, cardH / 2);
+                int totalH = cardH * 3 + gap * 2;
+                int top = y + (size - totalH) / 2;
+                HudCardRenderer.drawOverlayCard(ctx, x, top,
+                        size, cardH, cardH * 0.4f, rgb, alpha * 0.65f);
+                HudCardRenderer.drawOverlayCard(ctx, x, top + cardH + gap,
+                        size, cardH, cardH * 0.4f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x, top + (cardH + gap) * 2,
+                        size, cardH, cardH * 0.4f, rgb, alpha * 0.45f);
             }
         }
     }
 
-    private boolean hasAnyFeature(Category category) {
-        for (FeatureEntry feature : features) {
-            if (feature.category == category) {
-                return true;
-            }
-        }
-        return false;
+    /** Placeholder content for the CONFIGURATIONS view — empty translucent
+     *  area that fills the panel's interior. Will be wired to the profile-
+     *  sharing UI in a follow-up. */
+    private void renderConfigurationsView(DrawContext ctx, int mx, int my, float eased,
+                                            int px, int py, int pw, int ph) {
+        // Just a subtle inset card so the panel doesn't look unused.
+        int inset = dp(20);
+        drawLiquidGlass(ctx,
+                px + inset, py + inset,
+                pw - inset * 2, ph - inset * 2,
+                dp(14),
+                MenuTheme.MATERIAL_CARD,
+                MenuTheme.MATERIAL_OPACITY_CARD * 0.4f, eased);
+
+        // Tiny caption in the centre so it's clear this is a placeholder.
+        String label = "Configurations";
+        int tw = textWidth(label, TEXT_BRAND);
+        drawScaledText(ctx, label,
+                px + (pw - tw) / 2,
+                py + (ph - textHeight(TEXT_BRAND)) / 2 - dp(10),
+                TEXT_BRAND,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.55f * eased));
+        String sub = "Coming soon — share & switch your profiles here";
+        int sw = textWidth(sub, TEXT_DETAIL_LABEL);
+        drawScaledText(ctx, sub,
+                px + (pw - sw) / 2,
+                py + (ph - textHeight(TEXT_BRAND)) / 2 + dp(8),
+                TEXT_DETAIL_LABEL,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.50f * eased));
     }
 
-    private List<Category> visibleCategories() {
-        List<Category> list = new ArrayList<>();
-        for (Category category : Category.values()) {
-            if (hasAnyFeature(category)) {
-                list.add(category);
-            }
-        }
-        return list;
-    }
-
-    private List<FeatureEntry> visibleFeatures() {
-        List<FeatureEntry> list = new ArrayList<>();
-        String query = searchQuery.trim().toLowerCase(Locale.ROOT);
-        for (FeatureEntry feature : features) {
-            if (!query.isEmpty()) {
-                if (feature.name.toLowerCase(Locale.ROOT).contains(query)) {
-                    list.add(feature);
-                }
-            } else if (feature.category == selectedCategory) {
-                list.add(feature);
-            }
-        }
-        return list;
-    }
-
-    private int windowWidth() {
-        return Math.min(MenuTheme.WINDOW_WIDTH, width - 48);
-    }
-
-    private int windowHeight() {
-        return Math.min(MenuTheme.WINDOW_HEIGHT, height - 70);
-    }
-
-    private int windowX() {
-        return width / 2 - windowWidth() / 2;
-    }
-
-    private int windowY() {
-        return height / 2 - windowHeight() / 2 + 6;
-    }
-
-    private int gridX() {
-        return windowX() + MenuTheme.PADDING_WINDOW;
-    }
-
-    private int gridY() {
-        return windowY() + HEADER_HEIGHT;
-    }
-
-    private int gridWidth() {
-        return windowWidth() - MenuTheme.PADDING_WINDOW * 2;
-    }
-
-    private int gridHeight() {
-        return windowHeight() - HEADER_HEIGHT - DOCK_HEIGHT;
-    }
+    // ---------- Render ----------
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        long now = System.currentTimeMillis();
-        openProgress = Math.min(1.0f, Math.max(0.0f, (now - openedAtMs) / MenuTheme.OPEN_ANIM_DURATION_MS));
-        float eased = easeOutCubic(openProgress);
+        float eased = easeOutCubic(Math.min(1.0f,
+                (System.currentTimeMillis() - openedAtMs) / MenuTheme.OPEN_ANIM_DURATION_MS));
 
+        if (VibeVisualsConfigManager.get().menu.liquidGlassBlur) {
+            applyMenuBlur(context);
+        }
         renderDim(context, eased);
-        renderStatusPill(context, eased);
-        renderHotKeysPanel(context, mouseX, mouseY, eased);
-        renderMainWindow(context, mouseX, mouseY, eased);
-        renderSidePanel(context, mouseX, mouseY, eased);
-        renderColorPicker(context, mouseX, mouseY, eased);
+
+        int pw = panelW();
+        int ph = panelH();
+        int px = (width - pw) / 2;
+        int py = panelY();
+
+        renderBrandAbovePanel(context, eased, px, py, pw);
+
+        // App-rail (left-most vertical strip with view-switcher icons).
+        renderAppRail(context, mouseX, mouseY, eased, px, py, ph);
+
+        // Main panel — SDF shader card so the corners stay pixel-perfect at
+        // every aspect ratio (the 9-slice texture path showed visible stepping
+        // on one of the corners when the panel landed on a high-contrast spot
+        // in the world background).
+        drawSdfCard(context, px, py, pw, ph, dp(PANEL_RADIUS),
+                MenuTheme.MATERIAL_OPACITY_PANEL * eased);
+        HudCardRenderer.drawShaderOutline(context, px, py, pw, ph, dp(PANEL_RADIUS),
+                0.55f, MenuTheme.GLASS_OUTLINE_ALPHA * eased);
+
+        // Inset top highlight — 1-px lighter line along the top inner edge.
+        // Equivalent to CSS `inset 0 1px 0 rgba(255,255,255,0.06)` — sells the
+        // "machined" / "real glass" feel without going skeuomorphic.
+        int hlInset = dp(PANEL_RADIUS);
+        int hlAlpha = Math.round(0.06f * 255f * eased);
+        if (hlAlpha > 0) {
+            int hlColor = (hlAlpha << 24) | 0x00FFFFFF;
+            context.fill(px + hlInset, py, px + pw - hlInset, py + 1, hlColor);
+        }
+
+        // Advance drill-down animation.
+        float target = detailTarget != null ? 1.0f : 0.0f;
+        detailSlide += (target - detailSlide) * 0.28f;
+
+        if (currentView == AppView.SETTINGS) {
+            renderHeader(context, mouseX, mouseY, eased, px, py, pw);
+            renderSidebar(context, mouseX, mouseY, eased, px, py, ph);
+            renderContent(context, mouseX, mouseY, eased, px, py, pw, ph);
+        } else {
+            renderConfigurationsView(context, mouseX, mouseY, eased, px, py, pw, ph);
+        }
+
+        if (colorRow != null && detailTarget != null) {
+            drawColorPicker(context, mouseX, mouseY, eased);
+        } else if (detailTarget == null) {
+            colorRow = null; // detail closed — drop any open picker
+        }
+
         super.render(context, mouseX, mouseY, delta);
-        renderSettingTooltip(context, mouseX, mouseY);
     }
 
-    private void renderDim(DrawContext context, float eased) {
-        int alpha = (int) (0xCC * eased) & 0xFF;
-        context.fill(0, 0, width, height, (alpha << 24) | 0x05060A);
+    private int brandBlockHeight() {
+        return Math.max(dp(BRAND_ICON), textHeight(TEXT_BRAND)) + dp(BRAND_BOTTOM_GAP);
     }
 
-    private void renderStatusPill(DrawContext context, float eased) {
-        if (eased < 0.05f) {
-            return;
-        }
-        MinecraftClient client = MinecraftClient.getInstance();
-        int fps = client.getCurrentFps();
-        int ping = currentPing(client);
-
-        String text = "vibevisuals.pro  ·  " + fps + " fps  ·  " + ping + " ms";
-        int textW = textRenderer.getWidth(text);
-        int pillW = textW + 28;
-        int pillH = 16;
-        int px = width / 2 - pillW / 2;
-        int py = Math.max(8, windowY() - pillH - 14);
-
-        HudCardRenderer.drawOverlayCard(context, px, py, pillW, pillH, MenuTheme.RADIUS_PILL, MenuTheme.BG_PANEL_SOFT, 0.78f * eased);
-        HudCardRenderer.drawShaderOutline(context, px, py, pillW, pillH, MenuTheme.RADIUS_PILL, 0.6f, 0.30f * eased);
-
-        // small purple dot
-        int dotX = px + 8;
-        int dotY = py + pillH / 2;
-        context.fill(dotX, dotY - 1, dotX + 3, dotY + 2, MenuTheme.withAlpha(MenuTheme.ACCENT, 0.95f * eased));
-
-        int textColor = MenuTheme.withAlpha(MenuTheme.TEXT_SECONDARY | 0xFF000000, 0.85f * eased);
-        context.drawText(textRenderer, Text.literal(text), px + 16, py + 4, textColor, false);
+    private int panelY() {
+        int total = brandBlockHeight() + panelH();
+        int top = Math.max(dp(20), (height - total) / 2);
+        return top + brandBlockHeight();
     }
 
-    private int currentPing(MinecraftClient client) {
-        try {
-            if (client.player == null || client.getNetworkHandler() == null) {
-                return 0;
-            }
-            PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(client.player.getUuid());
-            return entry == null ? 0 : entry.getLatency();
-        } catch (Throwable ignored) {
-            return 0;
-        }
+    /** Brand asset — single PNG containing the V plate + "VibeVisuals" wordmark. */
+    private static final net.minecraft.util.Identifier BRAND_TEXTURE =
+            net.minecraft.util.Identifier.of( VibeVisualsClient.MOD_ID, "textures/gui/brand.png");
+    private static final int BRAND_TEX_W = 2508;
+    private static final int BRAND_TEX_H = 627;
+
+    private void renderBrandAbovePanel(DrawContext ctx, float eased, int px, int py, int pw) {
+        // Display dims: anchor height to BRAND_ICON dp, width follows the PNG's aspect.
+        int drawH = dp(BRAND_ICON);
+        int drawW = Math.round(drawH * (float) BRAND_TEX_W / BRAND_TEX_H);
+
+        int blockX = px + (pw - drawW) / 2;
+        int blockTop = py - brandBlockHeight();
+        int regionH = brandBlockHeight() - dp(BRAND_BOTTOM_GAP);
+        int drawY = blockTop + (regionH - drawH) / 2;
+
+        // Sample the full texture stretched to (drawW × drawH). Color tint =
+        // pure white so the PNG's own colours come through verbatim; only the
+        // alpha channel drives the open-animation fade.
+        int tint = MenuTheme.withAlpha(0xFFFFFF, eased);
+        ctx.drawTexture(
+                net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
+                BRAND_TEXTURE,
+                blockX, drawY,
+                0.0f, 0.0f,
+                drawW, drawH,
+                BRAND_TEX_W, BRAND_TEX_H,
+                BRAND_TEX_W, BRAND_TEX_H,
+                tint
+        );
     }
 
-    private void renderHotKeysPanel(DrawContext context, int mouseX, int mouseY, float eased) {
-        if (eased < 0.05f) {
-            return;
-        }
-        List<MultiKeyBinding> bindings = activeBindings();
-        int panelW = 138;
-        int rowH = 11;
-        int panelH = 22 + Math.min(4, bindings.size()) * rowH + 6;
-        int px = width - panelW - 14;
-        int py = 14;
-
-        HudCardRenderer.drawCard(context, px, py, panelW, panelH, sidePanelSettings);
-        HudCardRenderer.drawOverlayCard(context, px, py, panelW, panelH, MenuTheme.RADIUS_CARD, MenuTheme.BG_PANEL, 0.55f * eased);
-        HudCardRenderer.drawShaderOutline(context, px, py, panelW, panelH, MenuTheme.RADIUS_CARD, 0.5f, 0.22f * eased);
-
-        // header
-        drawKeyboardGlyph(context, px + 9, py + 7, MenuTheme.withAlpha(MenuTheme.ACCENT, eased));
-        context.drawText(textRenderer, Text.literal("Hot Keys"), px + 24, py + 7, MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased), false);
-
-        int rowY = py + 22;
-        int textColor = MenuTheme.withAlpha(MenuTheme.TEXT_SECONDARY | 0xFF000000, 0.92f * eased);
-        int keyColor = MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased);
-
-        if (bindings.isEmpty()) {
-            context.drawText(textRenderer, Text.literal("No bindings"), px + 10, rowY, MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, 0.85f * eased), false);
-            return;
-        }
-
-        for (int i = 0; i < Math.min(4, bindings.size()); i++) {
-            MultiKeyBinding binding = bindings.get(i);
-            String label = binding.displayName == null || binding.displayName.isBlank() ? binding.id : binding.displayName;
-            String key = binding.primary == null || !binding.primary.isAssigned() ? "?" : binding.primary.describe();
-            int trimW = panelW - 36 - textRenderer.getWidth(key);
-            String trimmed = trimTo(label, trimW);
-            context.drawText(textRenderer, Text.literal(trimmed), px + 10, rowY, textColor, false);
-            context.drawText(textRenderer, Text.literal(key), px + panelW - 10 - textRenderer.getWidth(key), rowY, keyColor, false);
-            rowY += rowH;
-        }
+    /**
+     * App-icon-style "V" mark. Two colour variants: a dark navy plate with a
+     * white V for the dark theme, a light plate with a dark V for the light
+     * theme — matching the brand assets the user provided.
+     */
+    private void drawVLogo(DrawContext ctx, int x, int y, int size, float eased) {
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        int plate = light ? 0xFFEFEFF6 : 0xFF0B0B16;
+        int vColor = light ? 0xFF0E0E18 : 0xFFFFFFFF;
+        int radius = Math.max(4, size * 22 / 100);
+        // Plate background (solid, NOT translucent — brand mark stays readable).
+        HudCardRenderer.drawOverlayCard(ctx, x, y, size, size, radius, plate, eased);
+        // Thin contrasting outline so the plate reads on either theme's backdrop.
+        HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, radius, 0.55f, 0.25f * eased);
+        // "V" letter centred in the plate. The optical centre of a "V" glyph
+        // sits above the geometric centre (wide top, pointy bottom), so we
+        // nudge it down a little to balance it inside the square.
+        int vW = textWidth("V", TEXT_BRAND_V);
+        int vH = textHeight(TEXT_BRAND_V);
+        int vx = x + (size - vW) / 2;
+        int vy = y + (size - vH) / 2 + Math.max(2, size / 10);
+        drawScaledText(ctx, "V", vx, vy, TEXT_BRAND_V,
+                MenuTheme.withAlpha(vColor, eased));
     }
 
-    private List<MultiKeyBinding> activeBindings() {
-        List<MultiKeyBinding> list = new ArrayList<>();
-        VibeVisualsConfig.MultiKeyBindingsConfig cfg = VibeVisualsConfigManager.get().multiKeyBindings;
-        if (cfg == null || cfg.bindings == null) {
-            return list;
+    // ---------- Header ----------
+
+    private void renderHeader(DrawContext ctx, int mx, int my, float eased,
+                              int px, int py, int pw) {
+        int hH = dp(HEADER_H);
+
+        // Back chevron — only the screen's own close affordance.  Detail back is
+        // rendered separately inside the content area.
+        int backSize = dp(20);
+        int backX = px + dp(PAD_X);
+        int backY = py + (hH - backSize) / 2;
+        hoveredBack = mx >= backX && mx <= backX + backSize
+                && my >= backY && my <= backY + backSize;
+        int backColor = hoveredBack
+                ? MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased)
+                : MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased);
+        drawChevronLeft(ctx, backX, backY, backSize, backColor);
+
+        // Brand label is rendered above the panel — header keeps only the back chevron.
+
+        // Search bar — right third of the header strip (only shown on list view).
+        if (detailTarget == null) {
+            int searchHpx = dp(SEARCH_H);
+            int sw = Math.max(dp(140), pw / 3);
+            int sx = px + pw - dp(PAD_X) - sw;
+            // +dp(2) nudge so the bar sits a touch below pure-centre — looks more balanced
+            // against the back chevron on the left, which has a slight optical-weight bottom.
+            int sy = py + (hH - searchHpx) / 2 + dp(2);
+            renderSearchBar(ctx, mx, my, sx, sy, sw, searchHpx, eased);
+        } else {
+            // Clear hit areas so stale clicks don't trigger inside detail view.
+            hoveredSearchBox = false;
+            hoveredSearchClear = false;
         }
-        for (MultiKeyBinding binding : cfg.bindings) {
-            if (binding != null && binding.enabled) {
-                list.add(binding);
-            }
-        }
-        return list;
+
+        int sepY = py + hH;
+        int sepStartX = px + dp(SIDEBAR_W);
+        ctx.fill(sepStartX, sepY, px + pw, sepY + 1,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SEPARATOR_ALPHA_HEADER * eased));
     }
 
-    private String trimTo(String text, int pixelWidth) {
-        if (pixelWidth <= 0) {
-            return "";
-        }
-        if (textRenderer.getWidth(text) <= pixelWidth) {
-            return text;
-        }
-        StringBuilder builder = new StringBuilder();
-        for (char c : text.toCharArray()) {
-            if (textRenderer.getWidth(builder.toString() + c + "…") > pixelWidth) {
-                builder.append('…');
-                return builder.toString();
-            }
-            builder.append(c);
-        }
-        return builder.toString();
-    }
+    // ---------- Sidebar ----------
 
-    private void renderMainWindow(DrawContext context, int mouseX, int mouseY, float eased) {
-        int wx = windowX();
-        int wy = windowY();
-        int ww = windowWidth();
-        int wh = windowHeight();
+    private void renderSidebar(DrawContext ctx, int mx, int my, float eased,
+                                int px, int py, int ph) {
+        int hH = dp(HEADER_H);
+        int sbW = dp(SIDEBAR_W);
+        int rowH = dp(SIDEBAR_ROW_H);
+        int sbX = px;
+        int sbY = py + hH + dp(10);
+        int pillInset = dp(SIDEBAR_PILL_PAD);
+        int pillX = sbX + pillInset;
+        int pillW = sbW - pillInset * 2;
+        int iconSize = dp(CATEGORY_ICON);
+        int iconGap = dp(CATEGORY_ICON_GAP);
 
-        windowSettings.opacity = 0.94f * eased;
-        HudCardRenderer.drawCard(context, wx, wy, ww, wh, windowSettings);
-        HudCardRenderer.drawOverlayCard(context, wx, wy, ww, 38, MenuTheme.RADIUS_WINDOW, MenuTheme.PURPLE_DEEP, 0.55f * eased);
-        HudCardRenderer.drawOverlayCard(context, wx, wy, ww, wh, MenuTheme.RADIUS_WINDOW, MenuTheme.BG_DEEP, 0.32f * eased);
-        HudCardRenderer.drawShaderOutline(context, wx, wy, ww, wh, MenuTheme.RADIUS_WINDOW, 0.6f, 0.34f * eased);
-
-        renderHeader(context, mouseX, mouseY, eased, wx, wy, ww);
-        renderFeatureGrid(context, mouseX, mouseY, eased);
-        renderDock(context, mouseX, mouseY, eased, wx, wy, ww, wh);
-    }
-
-    private void renderHeader(DrawContext context, int mouseX, int mouseY, float eased, int wx, int wy, int ww) {
-        // Logo + brand
-        int logoX = wx + MenuTheme.PADDING_WINDOW;
-        int logoY = wy + 12;
-        drawPulseLogo(context, logoX, logoY + 1, MenuTheme.ACCENT_BRIGHT, eased);
-        context.drawText(textRenderer, Text.literal("vibevisuals"), logoX + 18, logoY + 2, MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased), false);
-
-        // Category tabs with slash separators
-        List<Category> visible = visibleCategories();
-        int tabsX = logoX;
-        int tabsY = wy + 32;
+        Category[] cats = Category.values();
         hoveredCategoryIndex = -1;
-        int cursorX = tabsX;
-        for (int i = 0; i < visible.size(); i++) {
-            Category category = visible.get(i);
-            String label = category.label;
-            int labelW = textRenderer.getWidth(label);
-            boolean selected = category == selectedCategory && searchQuery.isEmpty();
-            int hoverPad = 4;
-            boolean hovered = mouseX >= cursorX - hoverPad && mouseX <= cursorX + labelW + hoverPad
-                    && mouseY >= tabsY - 3 && mouseY <= tabsY + 10;
-            if (hovered) {
-                hoveredCategoryIndex = i;
+
+        int cursorY = sbY;
+        Section lastSection = null;
+        for (int i = 0; i < cats.length; i++) {
+            Category cat = cats[i];
+            Section section = cat.section;
+            if (section != lastSection) {
+                if (lastSection != null) cursorY += dp(SECTION_HEADER_GAP - 6);
+                // Tracked uppercase caption — 0.08em letter-spacing, like the
+                // CSS `.section-label` recipe. Adds the premium "spaced caps"
+                // look to MODULES / SYSTEM headers.
+                drawScaledTextTracked(ctx, section.label,
+                        pillX + dp(10), cursorY + dp(2), TEXT_SECTION,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SECTION_HEADER_ALPHA * eased),
+                        0.18f);
+                cursorY += dp(SECTION_HEADER_GAP);
+                lastSection = section;
             }
-            int color = selected ? MenuTheme.TEXT_PRIMARY : (hovered ? MenuTheme.TEXT_SECONDARY | 0xFF000000 : MenuTheme.TEXT_MUTED | 0xFF000000);
-            context.drawText(textRenderer, Text.literal(label), cursorX, tabsY, MenuTheme.withAlpha(color, eased), false);
-            if (selected) {
-                int underY = tabsY + 11;
-                context.fill(cursorX, underY, cursorX + labelW, underY + 1, MenuTheme.withAlpha(MenuTheme.ACCENT_BRIGHT, eased));
+
+            int rowY = cursorY;
+            boolean hov = mx >= pillX && mx <= pillX + pillW
+                    && my >= rowY && my <= rowY + rowH;
+            if (hov) hoveredCategoryIndex = i;
+
+            boolean isSelected = cat == selected;
+            if (isSelected) {
+                // Active pill: base elevated glass + subtle accent tint overlay
+                // so the user's chosen brand colour reads on the active category.
+                drawLiquidGlass(ctx, pillX, rowY, pillW, rowH, dp(SIDEBAR_ROW_RADIUS),
+                        MenuTheme.MATERIAL_CARD_ACTIVE,
+                        MenuTheme.MATERIAL_OPACITY_CARD_ACTIVE + 0.05f, eased);
+                HudCardRenderer.drawOverlayCard(ctx, pillX, rowY, pillW, rowH,
+                        dp(SIDEBAR_ROW_RADIUS),
+                        MenuTheme.ACCENT_USER, 0.10f * eased);
+            } else if (hov) {
+                drawLiquidGlass(ctx, pillX, rowY, pillW, rowH, dp(SIDEBAR_ROW_RADIUS),
+                        MenuTheme.MATERIAL_CARD,
+                        MenuTheme.MATERIAL_OPACITY_CARD + 0.05f, eased);
             }
-            cursorX += labelW;
-            if (i < visible.size() - 1) {
-                context.drawText(textRenderer, Text.literal(" / "), cursorX, tabsY, MenuTheme.withAlpha(MenuTheme.TEXT_DISABLED | 0xFF000000, eased), false);
-                cursorX += textRenderer.getWidth(" / ");
-            }
-        }
 
-        // Search field background
-        int searchW = 130;
-        int searchH = 18;
-        int searchX = wx + ww - MenuTheme.PADDING_WINDOW - searchW;
-        int searchY = wy + 28;
-        HudCardRenderer.drawOverlayCard(context, searchX, searchY, searchW, searchH, MenuTheme.RADIUS_INPUT, MenuTheme.BG_INPUT, 0.85f * eased);
-        HudCardRenderer.drawShaderOutline(context, searchX, searchY, searchW, searchH, MenuTheme.RADIUS_INPUT, 0.5f, 0.28f * eased);
-        // Magnifier glyph
-        drawSearchGlyph(context, searchX + 8, searchY + 6, MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, eased));
-        // Right small button
-        int sideBtn = 12;
-        context.fill(searchX + searchW - sideBtn - 4, searchY + 3, searchX + searchW - 4, searchY + 3 + sideBtn,
-                MenuTheme.withAlpha(MenuTheme.BG_PANEL, 0.85f * eased));
-        context.drawText(textRenderer, Text.literal("⋯"), searchX + searchW - sideBtn + 1, searchY + 5,
-                MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, eased), false);
-
-        // place search field widget over the visual frame
-        if (searchField != null) {
-            searchField.setX(searchX + 18);
-            searchField.setY(searchY + 4);
-            searchField.setWidth(searchW - 36);
-            searchField.setHeight(12);
-        }
-    }
-
-    private void renderFeatureGrid(DrawContext context, int mouseX, int mouseY, float eased) {
-        int gx = gridX();
-        int gy = gridY();
-        int gw = gridWidth();
-        int gh = gridHeight();
-
-        // top fade separator
-        context.fill(gx, gy - 6, gx + gw, gy - 5, MenuTheme.withAlpha(MenuTheme.BORDER_SUBTLE | 0xFF000000, 0.5f * eased));
-
-        List<FeatureEntry> visible = visibleFeatures();
-        int columnW = (gw - CARD_GAP - SCROLLBAR_WIDTH - 6) / 2;
-        int rows = (visible.size() + 1) / 2;
-        gridContentHeight = rows * (CARD_HEIGHT + CARD_GAP);
-        maxScroll = Math.max(0, gridContentHeight - gh);
-        if (scroll > maxScroll) {
-            scroll = maxScroll;
-        }
-
-        context.enableScissor(gx, gy, gx + gw, gy + gh);
-        hoveredFeature = null;
-        for (int i = 0; i < visible.size(); i++) {
-            FeatureEntry feature = visible.get(i);
-            int column = i % 2;
-            int row = i / 2;
-            int fx = gx + column * (columnW + CARD_GAP);
-            int fy = gy + row * (CARD_HEIGHT + CARD_GAP) - scroll;
-            feature.x = fx;
-            feature.y = fy;
-            feature.width = columnW;
-            feature.height = CARD_HEIGHT;
-            feature.toggleWidth = MenuTheme.TOGGLE_WIDTH;
-            feature.toggleHeight = MenuTheme.TOGGLE_HEIGHT;
-            feature.toggleX = fx + columnW - feature.toggleWidth - 10;
-            feature.toggleY = fy + (CARD_HEIGHT - feature.toggleHeight) / 2;
-            renderFeatureCard(context, mouseX, mouseY, feature, eased);
-        }
-        context.disableScissor();
-
-        if (maxScroll > 0) {
-            int trackX = gx + gw - SCROLLBAR_WIDTH;
-            int trackTop = gy + 2;
-            int trackBottom = gy + gh - 2;
-            int trackH = trackBottom - trackTop;
-            int thumbH = Math.max(16, (int) ((float) gh / gridContentHeight * trackH));
-            int thumbY = trackTop + (int) ((float) scroll / maxScroll * (trackH - thumbH));
-            context.fill(trackX, trackTop, trackX + SCROLLBAR_WIDTH, trackBottom,
-                    MenuTheme.withAlpha(MenuTheme.BG_CARD, 0.55f * eased));
-            context.fill(trackX, thumbY, trackX + SCROLLBAR_WIDTH, thumbY + thumbH,
-                    MenuTheme.withAlpha(MenuTheme.ACCENT, 0.55f * eased));
-        }
-
-        // close side panel if its target scrolled out of grid
-        if (settingsTarget != null) {
-            boolean visibleInGrid = settingsTarget.y + settingsTarget.height > gy + 2 && settingsTarget.y < gy + gh - 2;
-            boolean stillListed = visible.contains(settingsTarget);
-            if (!stillListed || !visibleInGrid) {
-                closeSidePanel();
-            }
-        }
-    }
-
-    private void renderFeatureCard(DrawContext context, int mouseX, int mouseY, FeatureEntry feature, float eased) {
-        int gx = gridX();
-        int gy = gridY();
-        int gw = gridWidth();
-        int gh = gridHeight();
-        boolean inViewport = feature.y + feature.height > gy && feature.y < gy + gh;
-        if (!inViewport) {
-            feature.hoveredLastFrame = false;
-            return;
-        }
-        boolean hoverable = mouseX >= gx && mouseX <= gx + gw && mouseY >= gy && mouseY <= gy + gh;
-        boolean hovered = hoverable && mouseX >= feature.x && mouseX <= feature.x + feature.width
-                && mouseY >= feature.y && mouseY <= feature.y + feature.height;
-        if (hovered) {
-            hoveredFeature = feature;
-            if (!feature.hoveredLastFrame) {
-                playHoverSound();
-            }
-        }
-        feature.hoveredLastFrame = hovered;
-
-        float targetHover = (hovered || feature == settingsTarget) ? 1.0f : 0.0f;
-        feature.hoverProgress += (targetHover - feature.hoverProgress) * MenuTheme.HOVER_LERP;
-
-        boolean enabled = feature.enabled.get();
-        int baseBg = enabled ? MenuTheme.BG_CARD_ACTIVE : MenuTheme.BG_CARD;
-        int bg = MenuTheme.lerpColor(baseBg, MenuTheme.BG_CARD_HOVER, feature.hoverProgress * 0.55f);
-        HudCardRenderer.drawOverlayCard(context, feature.x, feature.y, feature.width, feature.height, MenuTheme.RADIUS_CARD, bg, 0.82f * eased);
-        HudCardRenderer.drawShaderOutline(context, feature.x, feature.y, feature.width, feature.height, MenuTheme.RADIUS_CARD,
-                0.5f, (enabled ? 0.35f : 0.18f) * eased + feature.hoverProgress * 0.20f);
-
-        if (enabled) {
-            HudCardRenderer.drawShaderOutline(context, feature.x - 2, feature.y - 2, feature.width + 4, feature.height + 4,
-                    MenuTheme.RADIUS_CARD + 2, 0.6f, 0.18f * eased);
-        }
-
-        int nameColor = enabled ? MenuTheme.TEXT_PRIMARY : MenuTheme.TEXT_SECONDARY | 0xFF000000;
-        context.drawText(textRenderer, Text.literal(feature.name), feature.x + 12, feature.y + (CARD_HEIGHT - 8) / 2,
-                MenuTheme.withAlpha(nameColor, eased), false);
-
-        // animated toggle
-        feature.knobProgress += ((enabled ? 1.0f : 0.0f) - feature.knobProgress) * MenuTheme.KNOB_LERP;
-        drawAnimatedToggle(context, feature.toggleX, feature.toggleY, feature.toggleWidth, feature.toggleHeight, feature.knobProgress, eased);
-    }
-
-    private void drawAnimatedToggle(DrawContext context, int x, int y, int w, int h, float knobProgress, float eased) {
-        int trackOff = MenuTheme.BG_CARD;
-        int trackOn = MenuTheme.ACCENT;
-        int trackColor = MenuTheme.lerpColor(trackOff, trackOn, knobProgress);
-        HudCardRenderer.drawOverlayCard(context, x, y, w, h, h / 2.0f, trackColor, 0.85f * eased);
-        if (knobProgress > 0.1f) {
-            HudCardRenderer.drawShaderOutline(context, x - 1, y - 1, w + 2, h + 2, h / 2.0f + 1, 0.4f, 0.40f * knobProgress * eased);
-        }
-        int knobSize = h - 4;
-        int knobMinX = x + 2;
-        int knobMaxX = x + w - knobSize - 2;
-        int knobX = Math.round(knobMinX + (knobMaxX - knobMinX) * knobProgress);
-        int knobColor = MenuTheme.lerpColor(0xFFB5B7C2, 0xFFFFFFFF, knobProgress);
-        HudCardRenderer.drawOverlayCard(context, knobX, y + 2, knobSize, knobSize, knobSize / 2.0f, knobColor, eased);
-    }
-
-    private void renderDock(DrawContext context, int mouseX, int mouseY, float eased, int wx, int wy, int ww, int wh) {
-        int dockW = 168;
-        int dockH = 26;
-        int dockX = wx + ww / 2 - dockW / 2;
-        int dockY = wy + wh - dockH - 6;
-
-        HudCardRenderer.drawOverlayCard(context, dockX, dockY, dockW, dockH, MenuTheme.RADIUS_BUTTON, MenuTheme.BG_PANEL_SOFT, 0.85f * eased);
-        HudCardRenderer.drawShaderOutline(context, dockX, dockY, dockW, dockH, MenuTheme.RADIUS_BUTTON, 0.5f, 0.30f * eased);
-
-        List<Category> visible = visibleCategories();
-        int slots = visible.size() + 2; // categories + multi-binding + config file
-        int slotW = (dockW - 8) / slots;
-        hoveredDockIndex = -1;
-
-        for (int i = 0; i < visible.size(); i++) {
-            int sx = dockX + 4 + i * slotW;
-            int sy = dockY + 3;
-            int sh = dockH - 6;
-            boolean hovered = mouseX >= sx && mouseX <= sx + slotW - 2 && mouseY >= sy && mouseY <= sy + sh;
-            boolean active = visible.get(i) == selectedCategory && searchQuery.isEmpty();
-            if (hovered) {
-                hoveredDockIndex = i;
-            }
-            if (active) {
-                HudCardRenderer.drawOverlayCard(context, sx, sy, slotW - 2, sh, MenuTheme.RADIUS_BUTTON - 2, MenuTheme.ACCENT, 0.85f * eased);
-                HudCardRenderer.drawShaderOutline(context, sx - 1, sy - 1, slotW, sh + 2, MenuTheme.RADIUS_BUTTON - 1, 0.5f, 0.45f * eased);
-            } else if (hovered) {
-                HudCardRenderer.drawOverlayCard(context, sx, sy, slotW - 2, sh, MenuTheme.RADIUS_BUTTON - 2, MenuTheme.BG_CARD_HOVER, 0.75f * eased);
-            }
-            drawCategoryIcon(context, sx + (slotW - 2) / 2, sy + sh / 2, visible.get(i), active ? 0xFFFFFFFF : (MenuTheme.TEXT_SECONDARY | 0xFF000000), eased);
-        }
-
-        int extraStart = dockX + 4 + visible.size() * slotW;
-        for (int i = 0; i < 2; i++) {
-            int sx = extraStart + i * slotW;
-            int sy = dockY + 3;
-            int sh = dockH - 6;
-            boolean hovered = mouseX >= sx && mouseX <= sx + slotW - 2 && mouseY >= sy && mouseY <= sy + sh;
-            if (hovered) {
-                hoveredDockIndex = visible.size() + i;
-                HudCardRenderer.drawOverlayCard(context, sx, sy, slotW - 2, sh, MenuTheme.RADIUS_BUTTON - 2, MenuTheme.BG_CARD_HOVER, 0.75f * eased);
-            }
-            if (i == 0) {
-                drawKeyboardGlyph(context, sx + (slotW - 2) / 2 - 4, sy + sh / 2 - 3, MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+            int contentX = pillX + dp(10);
+            int iconY = rowY + (rowH - iconSize) / 2;
+            int iconColor;
+            int textColor;
+            if (isSelected) {
+                // Active category icon — tinted with the user's accent so the
+                // brand colour spreads beyond just toggles.
+                iconColor = MenuTheme.withAlpha(MenuTheme.ACCENT_USER, eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased);
+            } else if (hov) {
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.80f * eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.85f * eased);
             } else {
-                drawFolderGlyph(context, sx + (slotW - 2) / 2 - 4, sy + sh / 2 - 3, MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+                iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.45f * eased);
+                textColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased);
             }
+            drawCategoryIcon(ctx, cat, contentX, iconY, iconSize, iconColor);
+            int textY = rowY + (rowH - textHeight(TEXT_CATEGORY)) / 2;
+            drawScaledText(ctx, cat.label, contentX + iconSize + iconGap, textY,
+                    TEXT_CATEGORY, textColor);
+
+            cursorY += rowH + dp(2);
         }
+
+        int vsX = sbX + sbW;
+        ctx.fill(vsX, py, vsX + 1, py + ph,
+                MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, SEPARATOR_ALPHA_SIDEBAR * eased));
     }
 
-    private void renderSidePanel(DrawContext context, int mouseX, int mouseY, float eased) {
-        if (settingsTarget == null) {
-            sideSlideProgress *= 0.5f;
-            return;
+    // ---------- Content area (list ↔ detail drill-down) ----------
+
+    private void renderContent(DrawContext ctx, int mx, int my, float eased,
+                                int px, int py, int pw, int ph) {
+        int cx = px + dp(SIDEBAR_W) + 1;
+        int cy = py + dp(HEADER_H);
+        int cw = pw - dp(SIDEBAR_W) - 1;
+        int chh = ph - dp(HEADER_H);
+
+        ctx.enableScissor(cx, cy, cx + cw, cy + chh);
+
+        // Slide: list pans out to the left, detail pans in from the right.
+        int slidePx = Math.round(detailSlide * cw);
+        // List sits offset by -slidePx, detail by (cw - slidePx).
+        if (detailSlide < 0.99f || detailTarget == null) {
+            renderModuleList(ctx, mx + slidePx, my, eased, cx - slidePx, cy, cw, chh);
         }
-        sideSlideProgress += (1.0f - sideSlideProgress) * MenuTheme.SIDE_SLIDE_LERP;
-        float sideEased = easeOutCubic(sideSlideProgress) * eased;
+        if (detailSlide > 0.02f || detailTarget != null) {
+            int detailX = cx + cw - slidePx;
+            renderDetail(ctx, mx - (detailX - cx), my, eased, detailX, cy, cw, chh);
+        }
 
-        // ensure side panel size: 8px padding + entries * rowH
-        int rowH = 16;
-        int padding = 12;
-        int titleArea = 38;
-        int desiredH = titleArea + Math.max(1, settingEntries.size()) * rowH + padding;
-        int maxH = height - 40;
-        sidePanelHeight = Math.min(desiredH, maxH);
+        ctx.disableScissor();
+    }
 
-        int sw = MenuTheme.SIDE_PANEL_WIDTH;
-        int sh = sidePanelHeight;
-        int wx = windowX();
-        int ww = windowWidth();
+    private void renderModuleList(DrawContext ctx, int mx, int my, float eased,
+                                   int cx, int cy, int cw, int chh) {
+        int rowH = dp(ROW_H);
+        int rowGap = dp(ROW_GAP);
+        int padX = dp(PAD_X);
+        int rowX = cx + padX;
+        int rowW = cw - padX * 2;
 
-        int targetX;
-        if (settingsSide == Side.RIGHT) {
-            int slideOffset = (int) ((1.0f - sideEased) * 16.0f);
-            targetX = wx + ww + 12 + slideOffset;
-            if (targetX + sw > width - 8) {
-                targetX = width - sw - 8;
+        // Search bar lives in the panel header (renderHeader), so the list keeps
+        // its full vertical space and starts at the top of the content area.
+        int listTop = cy + dp(12);
+        int listBot = cy + chh - dp(12);
+
+        // Filter set: by search query if non-empty (across all categories), else by selected category.
+        List<FeatureEntry> rows = new ArrayList<>();
+        if (!searchQuery.isEmpty()) {
+            String q = searchQuery.toLowerCase(Locale.ROOT);
+            for (FeatureEntry f : features) {
+                if (f.name.toLowerCase(Locale.ROOT).contains(q)) rows.add(f);
             }
         } else {
-            int slideOffset = (int) ((1.0f - sideEased) * 16.0f);
-            targetX = wx - sw - 12 - slideOffset;
-            if (targetX < 8) {
-                targetX = 8;
-            }
+            for (FeatureEntry f : features) if (f.category == selected) rows.add(f);
         }
 
-        int targetY = settingsTarget.y + settingsTarget.height / 2 - sh / 2;
-        targetY = Math.max(windowY(), Math.min(windowY() + windowHeight() - sh, targetY));
-        targetY = Math.max(12, Math.min(height - sh - 12, targetY));
-
-        sidePanelSettings.opacity = 0.96f * sideEased;
-        HudCardRenderer.drawCard(context, targetX, targetY, sw, sh, sidePanelSettings);
-        HudCardRenderer.drawOverlayCard(context, targetX, targetY, sw, sh, MenuTheme.RADIUS_WINDOW, MenuTheme.PURPLE_DEEP, 0.20f * sideEased);
-        HudCardRenderer.drawShaderOutline(context, targetX, targetY, sw, sh, MenuTheme.RADIUS_WINDOW, 0.55f, 0.32f * sideEased);
-
-        // header
-        context.drawText(textRenderer, Text.literal(settingsTarget.name), targetX + 14, targetY + 12,
-                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, sideEased), false);
-        String status = settingsTarget.enabled.get() ? "Enabled" : "Disabled";
-        int statusColor = settingsTarget.enabled.get() ? MenuTheme.ACCENT_BRIGHT : (MenuTheme.TEXT_MUTED | 0xFF000000);
-        context.drawText(textRenderer, Text.literal(status), targetX + 14, targetY + 24,
-                MenuTheme.withAlpha(statusColor, 0.95f * sideEased), false);
-
-        // separator
-        context.fill(targetX + 12, targetY + 36, targetX + sw - 12, targetY + 37,
-                MenuTheme.withAlpha(MenuTheme.BORDER_SUBTLE | 0xFF000000, 0.7f * sideEased));
-
-        int rowsTop = targetY + titleArea;
-        int rowsBottom = targetY + sh - padding;
-        int listHeight = rowsBottom - rowsTop;
-        int contentHeight = settingEntries.size() * rowH;
-        int maxSettingScroll = Math.max(0, contentHeight - listHeight);
-        if (settingsScroll > maxSettingScroll) {
-            settingsScroll = maxSettingScroll;
-        }
-
-        hoveredSettingEntry = null;
-
-        context.enableScissor(targetX + 6, rowsTop, targetX + sw - 6, rowsBottom);
-        if (settingEntries.isEmpty()) {
-            context.drawText(textRenderer, Text.literal("No settings"), targetX + 14, rowsTop + 4,
-                    MenuTheme.withAlpha(MenuTheme.TEXT_MUTED | 0xFF000000, sideEased), false);
-        }
-
-        for (int i = 0; i < settingEntries.size(); i++) {
-            SettingEntry entry = settingEntries.get(i);
-            int rowY = rowsTop + i * rowH - settingsScroll;
-            entry.y = rowY;
-            entry.x = targetX + 12;
-            entry.width = sw - 24;
-            entry.height = rowH - 2;
-            boolean visible = rowY + rowH > rowsTop && rowY < rowsBottom;
-            if (entry.input != null) {
-                entry.input.setX(targetX + sw - 64);
-                entry.input.setY(rowY);
-                entry.input.setWidth(48);
-                entry.input.setHeight(rowH - 4);
-                entry.input.visible = visible;
-            }
-            if (!visible) {
-                continue;
-            }
-            boolean rowHovered = mouseX >= entry.x && mouseX <= entry.x + entry.width
-                    && mouseY >= rowY && mouseY <= rowY + entry.height;
-            if (rowHovered) {
-                hoveredSettingEntry = entry;
-            }
-            context.drawText(textRenderer, settingNameText(entry.field.getName()), targetX + 14, rowY + 4,
-                    MenuTheme.withAlpha(MenuTheme.TEXT_SECONDARY | 0xFF000000, 0.9f * sideEased), false);
-            if (entry.field.getType() == boolean.class) {
-                boolean value = readBoolean(settingsTarget.config, entry.field);
-                entry.knobProgress += ((value ? 1.0f : 0.0f) - entry.knobProgress) * MenuTheme.KNOB_LERP;
-                drawAnimatedToggle(context, targetX + sw - 30, rowY + 2, 20, 10, entry.knobProgress, sideEased);
-            } else if (isColorField(entry.field)) {
-                int swatch = readColor(settingsTarget.config, entry.field);
-                int sx = targetX + sw - 30;
-                int sy = rowY + 3;
-                context.fill(sx, sy, sx + 18, sy + 8, MenuTheme.withAlpha(MenuTheme.BG_DEEP, sideEased));
-                context.fill(sx + 1, sy + 1, sx + 17, sy + 7, 0xFF000000 | (swatch & 0x00FFFFFF));
-                HudCardRenderer.drawShaderOutline(context, sx - 1, sy - 1, 20, 10, 3.0f, 0.4f, 0.4f * sideEased);
-            }
-        }
-        context.disableScissor();
-
-        if (maxSettingScroll > 0) {
-            int trackX = targetX + sw - 3;
-            int trackTop = rowsTop;
-            int trackBottom = rowsBottom;
-            int trackH = trackBottom - trackTop;
-            int thumbH = Math.max(14, (int) ((float) listHeight / contentHeight * trackH));
-            int thumbY = trackTop + (int) ((float) settingsScroll / maxSettingScroll * (trackH - thumbH));
-            context.fill(trackX, trackTop, trackX + 2, trackBottom, MenuTheme.withAlpha(MenuTheme.BG_CARD, 0.55f * sideEased));
-            context.fill(trackX, thumbY, trackX + 2, thumbY + thumbH, MenuTheme.withAlpha(MenuTheme.ACCENT, 0.55f * sideEased));
-        }
-    }
-
-    private void renderColorPicker(DrawContext context, int mouseX, int mouseY, float eased) {
-        SettingEntry entry = activeColorEntry;
-        if (settingsTarget == null || entry == null || !isColorField(entry.field)) {
+        // Empty-state when nothing matched the query.
+        if (rows.isEmpty() && !searchQuery.isEmpty()) {
+            int msgY = listTop + dp(16);
+            String msg = "No modules match \"" + searchQuery + "\"";
+            int tw = textWidth(msg, TEXT_ROW);
+            drawScaledText(ctx, msg, cx + (cw - tw) / 2, msgY, TEXT_ROW,
+                    MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased));
             return;
         }
-        int pickerSize = 86;
-        int sw = MenuTheme.SIDE_PANEL_WIDTH;
-        int basePanelX = settingsSide == Side.RIGHT ? windowX() + windowWidth() + 12 : windowX() - sw - 12;
-        int x = basePanelX + (settingsSide == Side.RIGHT ? sw + 8 : -pickerSize - 18);
-        if (x + pickerSize + 12 > width) {
-            x = Math.max(8, width - pickerSize - 12);
-        }
-        if (x < 8) {
-            x = 8;
-        }
-        int y = Math.max(12, Math.min(height - pickerSize - 36, entry.y));
-        pickerX = x;
-        pickerY = y;
-        pickerWidth = pickerSize;
-        pickerHeight = 38;
 
-        HudCardRenderer.drawCard(context, x - 6, y - 8, pickerSize + 12, pickerHeight + 28, sidePanelSettings);
-        int selected = readColor(settingsTarget.config, entry.field);
-        for (int px = 0; px < pickerSize; px += 2) {
-            float hue = px / (float) Math.max(1, pickerSize - 1);
-            context.fill(x + px, y, x + Math.min(pickerSize, px + 2), y + 18, 0xFF000000 | hsvToRgb(hue, 0.92f, 1.0f));
+        // Scroll calculations.
+        int contentH = rows.size() * (rowH + rowGap) - rowGap;
+        contentMaxScroll = Math.max(0, contentH - (listBot - listTop));
+        if (contentScroll > contentMaxScroll) contentScroll = contentMaxScroll;
+
+        hoveredRow = null;
+        hoveredOnSwitch = false;
+
+        int cursor = listTop - contentScroll;
+        for (FeatureEntry f : rows) {
+            int rowY = cursor;
+            cursor += rowH + rowGap;
+            if (rowY + rowH < listTop) continue;
+            if (rowY > listBot) break;
+
+            f.x = rowX;
+            f.y = rowY;
+            f.width = rowW;
+            f.height = rowH;
+            int swW = dp(SWITCH_W);
+            int swH = dp(SWITCH_H);
+            f.switchX = rowX + rowW - dp(ROW_PAD_X) - swW;
+            f.switchY = rowY + (rowH - swH) / 2;
+            f.switchWidth = swW;
+            f.switchHeight = swH;
+
+            boolean hov = mx >= f.x && mx <= f.x + f.width
+                    && my >= f.y && my <= f.y + f.height;
+            boolean onSwitch = mx >= f.switchX - dp(3) && mx <= f.switchX + f.switchWidth + dp(3)
+                    && my >= f.switchY - dp(3) && my <= f.switchY + f.switchHeight + dp(3);
+            if (hov) {
+                hoveredRow = f;
+                hoveredOnSwitch = onSwitch;
+            }
+
+            f.hoverProgress += ((hov ? 1.0f : 0.0f) - f.hoverProgress) * MenuTheme.HOVER_LERP;
+
+            // Every row gets a barely-there card + hairline border. Enabled
+            // rows additionally get a subtle accent tint on the background so
+            // the accent colour reads as a brand element rather than only a
+            // toggle pill. ChatGPT recipe: rgba(accent, 0.045) bg + 0.22 ring.
+            int cardInset = dp(2);
+            int cardY = f.y + cardInset;
+            int cardH = f.height - cardInset * 2;
+            boolean rowOn = f.enabled.get();
+
+            // Base dark card so the row reads as inset against the panel.
+            float restBgA   = 0.10f;
+            float hoverBgA  = 0.14f - 0.10f;
+            float bgAlpha   = restBgA + hoverBgA * f.hoverProgress;
+            HudCardRenderer.drawOverlayCard(ctx, f.x, cardY, f.width, cardH,
+                    dp(ROW_RADIUS), 0xFF000000, bgAlpha * eased);
+
+            // Accent tint overlay — only when the module is ON.
+            if (rowOn) {
+                float accentBgA = 0.06f + 0.04f * f.hoverProgress;  // 0.06 → 0.10
+                HudCardRenderer.drawOverlayCard(ctx, f.x, cardY, f.width, cardH,
+                        dp(ROW_RADIUS), MenuTheme.ACCENT_USER, accentBgA * eased);
+            }
+
+            // Hairline ring — brighter when enabled so it reads as "active".
+            float restRingA  = rowOn ? 0.20f : 0.045f;
+            float hoverRingA = rowOn ? 0.28f - 0.20f : 0.090f - 0.045f;
+            float ringAlpha  = restRingA + hoverRingA * f.hoverProgress;
+            HudCardRenderer.drawShaderOutline(ctx, f.x, cardY, f.width, cardH,
+                    dp(ROW_RADIUS), 0.5f, ringAlpha * eased);
+
+            boolean enabled = f.enabled.get();
+            // Hierarchy per ChatGPT's premium recipe:
+            //   title       — rgba(white, 0.92)  (was 0.82, too pale)
+            //   description — rgba(white, 0.42)
+            // Disabled rows fade both lines so the toggle state reads at a glance.
+            int nameColor = enabled
+                    ? MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.92f * eased)
+                    : MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.48f * eased);
+            int subColor = enabled
+                    ? MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.42f * eased)
+                    : MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.28f * eased);
+
+            // Pick description for current MC locale. Name is always English.
+            String desc = localizedDescription(f);
+
+            // textHeight returns only the cap height (~0.72 of em) — the SmoothText
+            // cell drawn for `name` actually extends below that point. dp(2) gap was
+            // too tight and the description's caps clipped under the name's tail.
+            // Bump gap to dp(6) so there's clear daylight between the two lines.
+            int nameH = textHeight(TEXT_ROW);
+            int subH  = textHeight(TEXT_ROW_SUB);
+            int gap = dp(6);
+            int totalH = nameH + gap + subH;
+            int blockTop = rowY + (rowH - totalH) / 2;
+
+            // Module icon — square, centered vertically, leftmost element of the row.
+            // Enabled rows: tinted with the user's accent. Disabled: muted neutral.
+            int iconSize = dp(14);
+            int iconX = rowX + dp(ROW_PAD_X);
+            int iconY = rowY + (rowH - iconSize) / 2;
+            if (f.icon != null) {
+                int moduleIconColor = rowOn
+                        ? MenuTheme.withAlpha(MenuTheme.ACCENT_USER, 0.95f * eased)
+                        : nameColor;
+                drawModuleIcon(ctx, f.icon, iconX, iconY, iconSize, moduleIconColor);
+            }
+
+            // Text starts to the right of the icon.
+            int textX = (f.icon != null) ? iconX + iconSize + dp(10) : rowX + dp(ROW_PAD_X);
+            drawScaledText(ctx, f.name, textX, blockTop, TEXT_ROW, nameColor);
+            if (desc != null && !desc.isEmpty()) {
+                drawScaledText(ctx, desc,
+                        textX, blockTop + nameH + gap, TEXT_ROW_SUB, subColor);
+            }
+
+            // (drill-into-detail chevron removed — it rasterised to a stepped 3-pixel
+            // dot at row scale, adding noise without affordance: whole row is already
+            // clickable to open detail, hovering the row highlights it.)
+
+            // Apple-style switch — skipped for button-style rows (customAction set).
+            if (f.customAction == null) {
+                f.knobAnim += ((enabled ? 1.0f : 0.0f) - f.knobAnim) * MenuTheme.KNOB_LERP;
+                drawAppleSwitch(ctx, f.switchX, f.switchY, f.switchWidth, f.switchHeight,
+                        f.knobAnim, eased);
+            } else {
+                // For action rows draw a small chevron-right hint to signal "opens screen".
+                int chevSize = dp(10);
+                int chevX = f.switchX + f.switchWidth - chevSize;
+                int chevY = f.switchY + (f.switchHeight - chevSize) / 2;
+                drawChevronRight(ctx, chevX, chevY, chevSize,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased));
+            }
         }
-        int hueColor = 0xFF000000 | (selected & 0x00FFFFFF);
-        for (int px = 0; px < pickerSize; px += 2) {
-            float value = px / (float) Math.max(1, pickerSize - 1);
-            context.fill(x + px, y + 22, x + Math.min(pickerSize, px + 2), y + 38, mixColor(0x000000, hueColor & 0x00FFFFFF, value) | 0xFF000000);
+
+        // Scrollbar — drawn OUTSIDE the panel (to the right of it) so it reads
+        // as a separate floating indicator instead of an inline rail. Needs the
+        // scissor lifted because the content scissor would clip anything past
+        // the panel's right edge.
+        if (contentMaxScroll > 0) {
+            int viewportH = listBot - listTop;
+            int totalH = viewportH + contentMaxScroll;
+            // Use panel bounds (not the content area) for vertical centring so
+            // top/bottom margins match visually.
+            int panelTop = cy - dp(HEADER_H);
+            int panelBottom = cy + chh;
+            ctx.disableScissor();
+            drawScrollbar(ctx, cx + cw + dp(10), panelTop, panelBottom,
+                    contentScroll, contentMaxScroll, viewportH, totalH, eased);
+            ctx.enableScissor(cx, cy, cx + cw, cy + chh);
         }
-        context.drawText(textRenderer, Text.literal("Color"), x, y + pickerHeight + 6, MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased), false);
-        context.fill(x + 42, y + pickerHeight + 6, x + 64, y + pickerHeight + 16, 0xFF000000);
-        context.fill(x + 43, y + pickerHeight + 7, x + 63, y + pickerHeight + 15, 0xFF000000 | (selected & 0x00FFFFFF));
     }
 
-    private void renderSettingTooltip(DrawContext context, int mouseX, int mouseY) {
-        if (hoveredSettingEntry == null || settingsTarget == null) {
+    /** Floating scrollbar sitting to the right of the panel. A small dark
+     *  rounded card hosts the white thumb — reads as its own little capsule
+     *  rather than a hairline rail. Centred against {@code panelTop/Bottom}. */
+    private void drawScrollbar(DrawContext ctx, int rightEdge, int panelTop, int panelBottom,
+                                int scroll, int maxScroll, int viewportH, int contentH,
+                                float eased) {
+        int panelH = panelBottom - panelTop;
+        // Card geometry: tall thin capsule, ~45% of panel height, centred.
+        int cardW = Math.max(dp(6), dp(7));
+        int cardH = Math.min(panelH, (panelH * 2) / 5);
+        int cardX = rightEdge - cardW;
+        int cardY = panelTop + (panelH - cardH) / 2;
+        int cardRadius = cardW / 2; // fully rounded ends
+
+        // Plain dark capsule — no outline / glass highlights (those rendered as
+        // bright slivers on the top/bottom that distracted from the thumb).
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        int cardColor = light ? 0xFFB8B8C0 : 0xFF0A0A10;
+        HudCardRenderer.drawOverlayCard(ctx, cardX, cardY, cardW, cardH, cardRadius,
+                cardColor, 0.55f * eased);
+
+        // Thumb — narrower than the card, white, sized by viewport/content ratio.
+        int thumbW = Math.max(2, cardW - dp(3));
+        int thumbX = cardX + (cardW - thumbW) / 2;
+        int innerPad = dp(2);
+        int trackH = cardH - innerPad * 2;
+        int thumbH = Math.max(dp(8),
+                Math.round((float) trackH * viewportH / Math.max(1, contentH)));
+        if (thumbH > trackH) thumbH = trackH;
+        int thumbY = cardY + innerPad + Math.round(
+                (float) (trackH - thumbH) * scroll / Math.max(1, maxScroll));
+        HudCardRenderer.drawOverlayCard(ctx, thumbX, thumbY, thumbW, thumbH,
+                thumbW * 0.5f, 0xFFFFFFFF, 0.90f * eased);
+    }
+
+    /** Search bar inside the panel header (or wherever caller places it). */
+    private void renderSearchBar(DrawContext ctx, int mx, int my,
+                                  int sx, int sy, int sw, int sh, float eased) {
+        searchX = sx;
+        searchY = sy;
+        searchW = sw;
+        searchH = sh;
+
+        hoveredSearchBox = mx >= searchX && mx <= searchX + searchW
+                && my >= searchY && my <= searchY + searchH;
+        searchFocusAnim += ((searchFocused ? 1.0f : 0.0f) - searchFocusAnim) * MenuTheme.HOVER_LERP;
+
+        // Glass pill background.
+        float baseOpacity = MenuTheme.MATERIAL_OPACITY_CARD * (0.55f + searchFocusAnim * 0.25f);
+        drawLiquidGlass(ctx, searchX, searchY, searchW, searchH, dp(SEARCH_RADIUS),
+                MenuTheme.MATERIAL_CARD, baseOpacity, eased);
+        // Accent focus tint — fades in as the search field gains focus.
+        if (searchFocusAnim > 0.02f) {
+            HudCardRenderer.drawOverlayCard(ctx, searchX, searchY, searchW, searchH,
+                    dp(SEARCH_RADIUS), MenuTheme.ACCENT_USER,
+                    0.12f * searchFocusAnim * eased);
+        }
+
+        // Magnifier icon — small ring + diagonal stem, drawn from quads.
+        int iconSize = dp(11);
+        int iconX = searchX + dp(SEARCH_PAD_X);
+        int iconY = searchY + (searchH - iconSize) / 2;
+        int iconColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL,
+                (searchFocused ? 0.85f : 0.55f) * eased);
+        // Lerp icon colour towards the accent as focus animates in.
+        int focusedColor = MenuTheme.withAlpha(MenuTheme.ACCENT_USER, 0.95f * eased);
+        int finalIconColor = searchFocusAnim > 0.02f
+                ? MenuTheme.lerpColor(iconColor, focusedColor, searchFocusAnim)
+                : iconColor;
+        drawSearchIcon(ctx, iconX, iconY, iconSize, finalIconColor);
+
+        // Text: live query if any, placeholder otherwise.
+        int textX = iconX + iconSize + dp(8);
+        int textY = searchY + (searchH - textHeight(TEXT_SEARCH)) / 2;
+        if (searchQuery.isEmpty()) {
+            drawScaledText(ctx, "Search modules…", textX, textY, TEXT_SEARCH,
+                    MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.45f * eased));
+        } else {
+            drawScaledText(ctx, searchQuery, textX, textY, TEXT_SEARCH,
+                    MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+            // Blinking caret right after the query text — only when focused.
+            if (searchFocused && (System.currentTimeMillis() / 530L) % 2L == 0L) {
+                int caretX = textX + textWidth(searchQuery, TEXT_SEARCH) + dp(1);
+                int caretH = textHeight(TEXT_SEARCH);
+                ctx.fill(caretX, textY, caretX + Math.max(1, dp(1)), textY + caretH,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+            }
+        }
+
+        // Clear `×` button on the right when there is a query.
+        hoveredSearchClear = false;
+        if (!searchQuery.isEmpty()) {
+            int clearSize = dp(12);
+            int clearX = searchX + searchW - dp(SEARCH_PAD_X) - clearSize;
+            int clearY = searchY + (searchH - clearSize) / 2;
+            hoveredSearchClear = mx >= clearX - dp(2) && mx <= clearX + clearSize + dp(2)
+                    && my >= clearY - dp(2) && my <= clearY + clearSize + dp(2);
+            int clearColor = MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL,
+                    (hoveredSearchClear ? 0.95f : 0.55f) * eased);
+            drawCrossIcon(ctx, clearX, clearY, clearSize, clearColor);
+        }
+    }
+
+    /** Tiny magnifier: a 5-segment ring + 2-segment stem, all 1-px thick. */
+    private void drawSearchIcon(DrawContext ctx, int x, int y, int size, int color) {
+        int thick = Math.max(1, size / 7);
+        int ringSize = (int) Math.round(size * 0.72);
+        int rx = x;
+        int ry = y;
+        // Ring as 4 edges of a square (visually reads as round at small sizes thanks to AA + mip).
+        ctx.fill(rx, ry, rx + ringSize, ry + thick, color);                              // top
+        ctx.fill(rx, ry + ringSize - thick, rx + ringSize, ry + ringSize, color);        // bottom
+        ctx.fill(rx, ry, rx + thick, ry + ringSize, color);                              // left
+        ctx.fill(rx + ringSize - thick, ry, rx + ringSize, ry + ringSize, color);        // right
+        // Stem.
+        int stemStartX = rx + ringSize - 1;
+        int stemStartY = ry + ringSize - 1;
+        int stemEnd = Math.max(2, size - ringSize + 1);
+        for (int i = 0; i < stemEnd; i++) {
+            ctx.fill(stemStartX + i, stemStartY + i,
+                    stemStartX + i + thick, stemStartY + i + thick, color);
+        }
+    }
+
+    /** Tiny cross / clear icon: two diagonal segments. */
+    private void drawCrossIcon(DrawContext ctx, int x, int y, int size, int color) {
+        int thick = Math.max(1, size / 7);
+        int reach = size - thick;
+        for (int i = 0; i < reach; i++) {
+            ctx.fill(x + i, y + i, x + i + thick, y + i + thick, color);
+            ctx.fill(x + reach - i, y + i, x + reach - i + thick, y + i + thick, color);
+        }
+    }
+
+    private void renderDetail(DrawContext ctx, int mx, int my, float eased,
+                               int cx, int cy, int cw, int chh) {
+        FeatureEntry target = detailTarget;
+        if (target == null) return;
+
+        int padX = dp(PAD_X);
+
+        // Back row.
+        int backY = cy + dp(14);
+        int backSize = dp(14);
+        int backX = cx + padX;
+        hoveredDetailBack = mx >= backX - dp(4) && mx <= backX + backSize + dp(40)
+                && my >= backY - dp(4) && my <= backY + backSize + dp(4);
+        int backColor = hoveredDetailBack
+                ? MenuTheme.withAlpha(MenuTheme.ACCENT_USER, eased)
+                : MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.70f * eased);
+        drawChevronLeft(ctx, backX, backY, backSize, backColor);
+        drawScaledText(ctx, "Back", backX + backSize + dp(6),
+                backY + (backSize - textHeight(TEXT_BACK)) / 2,
+                TEXT_BACK, backColor);
+
+        // Title row.
+        int titleY = backY + backSize + dp(10);
+        drawScaledText(ctx, target.name, cx + padX, titleY, TEXT_DETAIL_TITLE,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+
+        // ---- Special case: Themes ----
+        // Replaces the reflective settings block with a tile grid.
+        if ("Themes".equals(target.name)) {
+            int gridTop = titleY + textHeight(TEXT_DETAIL_TITLE) + dp(16);
+            renderThemesGrid(ctx, mx, my, cx + padX, gridTop,
+                    cw - padX * 2,
+                    (cy + chh) - gridTop - dp(10),
+                    eased);
             return;
         }
-        String name = hoveredSettingEntry.field.getName();
-        Text description = Text.translatableWithFallback("screen.vibevisuals.setting." + name, humanize(name));
-        int tw = Math.min(180, textRenderer.getWidth(description) + 14);
-        int th = 16;
-        int tx = Math.min(width - tw - 8, mouseX + 12);
-        int ty = Math.min(height - th - 8, mouseY + 12);
-        HudCardRenderer.drawOverlayCard(context, tx, ty, tw, th, MenuTheme.RADIUS_PILL, MenuTheme.BG_PANEL_SOFT, 0.90f);
-        HudCardRenderer.drawShaderOutline(context, tx, ty, tw, th, MenuTheme.RADIUS_PILL, 0.4f, 0.3f);
-        context.drawText(textRenderer, description, tx + 7, ty + 4, MenuTheme.TEXT_SECONDARY | 0xFF000000, false);
+
+        // Enable toggle row (always first, mirrors the list switch).
+        int controlsTop = titleY + textHeight(TEXT_DETAIL_TITLE) + dp(20);
+        int rowH = dp(34);
+        int rowRadius = dp(10);
+        int rowsX = cx + padX;
+        int rowsW = cw - padX * 2;
+
+        hoveredSettingRow = null;
+
+        // Synthetic "Enabled" row.
+        int enRowY = controlsTop;
+        drawSettingRowBg(ctx, rowsX, enRowY, rowsW, rowH, rowRadius, eased);
+        drawScaledText(ctx, "Enabled", rowsX + dp(14),
+                enRowY + (rowH - textHeight(TEXT_DETAIL_LABEL)) / 2,
+                TEXT_DETAIL_LABEL,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased));
+        int swW = dp(SWITCH_W);
+        int swH = dp(SWITCH_H);
+        int enSwX = rowsX + rowsW - dp(14) - swW;
+        int enSwY = enRowY + (rowH - swH) / 2;
+        target.detailKnobAnim += ((target.enabled.get() ? 1.0f : 0.0f) - target.detailKnobAnim)
+                * MenuTheme.KNOB_LERP;
+        drawAppleSwitch(ctx, enSwX, enSwY, swW, swH, target.detailKnobAnim, eased);
+        target.detailSwitchX = enSwX;
+        target.detailSwitchY = enSwY;
+        target.detailSwitchW = swW;
+        target.detailSwitchH = swH;
+
+        // Reflected setting rows.
+        if (detailSettings.isEmpty()) {
+            rebuildDetailSettings(target);
+        }
+
+        int cursorY = enRowY + rowH + dp(6);
+        for (SettingRow row : detailSettings) {
+            if (cursorY + rowH > cy + chh - dp(12)) break;
+            drawSettingRowBg(ctx, rowsX, cursorY, rowsW, rowH, rowRadius, eased);
+
+            row.x = rowsX;
+            row.y = cursorY;
+            row.width = rowsW;
+            row.height = rowH;
+
+            String label = humanize(row.field.getName());
+            int labelY = cursorY + (rowH - textHeight(TEXT_DETAIL_LABEL)) / 2;
+            drawScaledText(ctx, label, rowsX + dp(14), labelY, TEXT_DETAIL_LABEL,
+                    MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.92f * eased));
+
+            Class<?> type = row.field.getType();
+            if (type == boolean.class) {
+                int sx = rowsX + rowsW - dp(14) - swW;
+                int sy = cursorY + (rowH - swH) / 2;
+                row.switchX = sx;
+                row.switchY = sy;
+                row.switchW = swW;
+                row.switchH = swH;
+                boolean v = readBool(target.config, row.field);
+                row.knobAnim += ((v ? 1.0f : 0.0f) - row.knobAnim) * MenuTheme.KNOB_LERP;
+                drawAppleSwitch(ctx, sx, sy, swW, swH, row.knobAnim, eased);
+            } else if (isColorField(row.field)) {
+                // Read-only colour swatch + hex text. Click-to-edit can be added later.
+                int swatch = dp(16);
+                int sx = rowsX + rowsW - dp(14) - swatch;
+                int sy = cursorY + (rowH - swatch) / 2;
+                row.swatchX = sx; row.swatchY = sy; row.swatchSize = swatch;
+                int argb = (int) readFloat(target.config, row.field);
+                // Coerce: if alpha is 0 (legacy int colour), force opaque for preview.
+                int previewColor = (argb & 0xFF000000) == 0 ? (argb | 0xFF000000) : argb;
+                HudCardRenderer.drawOverlayCard(ctx, sx, sy, swatch, swatch, dp(4),
+                        previewColor, 1.0f * eased);
+                HudCardRenderer.drawShaderOutline(ctx, sx, sy, swatch, swatch, dp(4),
+                        0.5f, 0.30f * eased);
+                String hex = String.format(Locale.ROOT, "#%06X", argb & 0xFFFFFF);
+                int tw = textWidth(hex, TEXT_DETAIL_LABEL);
+                drawScaledText(ctx, hex, sx - tw - dp(8), labelY, TEXT_DETAIL_LABEL,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased));
+            } else if (type == int.class || type == float.class) {
+                // Slider for numeric fields. Width chosen so the value text + slider
+                // still leave breathing room from the label on the left.
+                float cur = readFloat(target.config, row.field);
+                if (row.hint == null) row.hint = hintFor(row.field, cur);
+                SliderHint h = row.hint;
+
+                String valStr = formatValue(cur, h);
+                int valW = textWidth(valStr, TEXT_DETAIL_LABEL);
+                int sliderW = dp(110);
+                int sliderH = dp(6);
+                int valueRightEdge = rowsX + rowsW - dp(14);
+                int valueX = valueRightEdge - valW;
+                int sliderX = valueX - dp(10) - sliderW;
+                int sliderY = cursorY + (rowH - sliderH) / 2;
+
+                row.sliderX = sliderX; row.sliderY = sliderY;
+                row.sliderW = sliderW; row.sliderH = sliderH;
+
+                drawSlider(ctx, sliderX, sliderY, sliderW, sliderH, cur, h, eased);
+                drawScaledText(ctx, valStr, valueX, labelY, TEXT_DETAIL_LABEL,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.85f * eased));
+            } else {
+                // String or unknown — read-only text.
+                String text = fieldToString(target.config, row.field);
+                int tw = textWidth(text, TEXT_DETAIL_LABEL);
+                int tx = rowsX + rowsW - dp(14) - tw;
+                drawScaledText(ctx, text, tx, labelY, TEXT_DETAIL_LABEL,
+                        MenuTheme.withAlpha(MenuTheme.TEXT_NEUTRAL, 0.55f * eased));
+            }
+
+            boolean rowHov = mx >= row.x && mx <= row.x + row.width
+                    && my >= row.y && my <= row.y + row.height;
+            if (rowHov) hoveredSettingRow = row;
+
+            cursorY += rowH + dp(4);
+        }
     }
 
-    // ---------- Mouse handling ----------
+    /**
+     * Grid of accent-theme tiles. Each tile is a small dark card with a
+     * coloured swatch and the theme's display name. Auto-fits columns based on
+     * available width.
+     */
+    private void renderThemesGrid(DrawContext ctx, int mx, int my,
+                                    int gridX, int gridY, int gridW, int gridH, float eased) {
+        ru.suppelemen.vibevisuals.theme.AccentTheme[] themes =
+                ru.suppelemen.vibevisuals.theme.AccentTheme.values();
+        int tileW = dp(96);
+        int tileH = dp(78);
+        int gap = dp(8);
+        int radius = dp(12);
+
+        int cols = Math.max(1, (gridW + gap) / (tileW + gap));
+        int actualGridW = cols * tileW + Math.max(0, cols - 1) * gap;
+        int startX = gridX + (gridW - actualGridW) / 2;
+
+        hoveredThemeIndex = -1;
+        String activeName = VibeVisualsConfigManager.get().menu.accent;
+
+        for (int i = 0; i < themes.length; i++) {
+            ru.suppelemen.vibevisuals.theme.AccentTheme t = themes[i];
+            int col = i % cols;
+            int row = i / cols;
+            int tx = startX + col * (tileW + gap);
+            int ty = gridY + row * (tileH + gap);
+            if (ty + tileH > gridY + gridH) break;   // clip overflow
+
+            boolean hov = mx >= tx && mx <= tx + tileW && my >= ty && my <= ty + tileH;
+            boolean active = t.name().equalsIgnoreCase(activeName);
+            if (hov) hoveredThemeIndex = i;
+
+            // Card background.
+            float bgAlpha = (active ? 0.20f : (hov ? 0.16f : 0.10f)) * eased;
+            HudCardRenderer.drawOverlayCard(ctx, tx, ty, tileW, tileH, radius,
+                    0xFF000000, bgAlpha);
+            // Ring — accent colour when active, hairline white otherwise.
+            float ringAlpha = (active ? 0.55f : (hov ? 0.18f : 0.08f)) * eased;
+            HudCardRenderer.drawShaderOutline(ctx, tx, ty, tileW, tileH, radius, 0.5f, ringAlpha);
+            if (active) {
+                // Re-stroke in accent colour for emphasis.
+                int outRgb = (t.color & 0xFFFFFF) | (Math.round(0.85f * 255f * eased) << 24);
+                HudCardRenderer.drawShaderOutline(ctx, tx, ty, tileW, tileH, radius, 0.7f,
+                        0.85f * eased);
+                // Tint outline by stacking a coloured pass.
+                HudCardRenderer.drawOverlayCard(ctx, tx, ty, tileW, tileH, radius,
+                        t.color, 0.08f * eased);
+            }
+
+            // Colour swatch — small square in the upper half, centred horizontally.
+            int swatch = dp(28);
+            int sx = tx + (tileW - swatch) / 2;
+            int sy = ty + dp(10);
+            HudCardRenderer.drawOverlayCard(ctx, sx, sy, swatch, swatch, dp(7),
+                    t.color, 1.0f * eased);
+            // Tiny inner ring for premium feel.
+            HudCardRenderer.drawShaderOutline(ctx, sx, sy, swatch, swatch, dp(7),
+                    0.5f, 0.30f * eased);
+
+            // Theme name centred below swatch.
+            String name = t.label;
+            int tw = textWidth(name, TEXT_DETAIL_LABEL);
+            int nameY = sy + swatch + dp(8);
+            int nameColor = active
+                    ? MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, eased)
+                    : MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.85f * eased);
+            drawScaledText(ctx, name, tx + (tileW - tw) / 2, nameY,
+                    TEXT_DETAIL_LABEL, nameColor);
+        }
+    }
+
+    private void drawSettingRowBg(DrawContext ctx, int x, int y, int w, int h,
+                                   int radius, float eased) {
+        drawLiquidGlass(ctx, x, y, w, h, radius,
+                MenuTheme.MATERIAL_CARD,
+                MenuTheme.MATERIAL_OPACITY_CARD + 0.05f, eased);
+    }
+
+    /**
+     * Range slider. Three layers:
+     *   - track (muted pill, full width)
+     *   - filled portion (brighter pill, 0…thumbX)
+     *   - thumb (circle, accent ring)
+     * All shader-AA so they stay smooth at small heights.
+     */
+    private void drawSlider(DrawContext ctx, int x, int y, int w, int h,
+                             float value, SliderHint hint, float eased) {
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        float r = h * 0.5f;
+
+        // Track — neutral grey, muted opacity. Lets the filled portion + thumb
+        // do the visual heavy-lifting instead of the rail itself.
+        int trackColor = light ? 0xFFC4C4C4 : 0xFF3A3A3A;
+        HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, r, trackColor, 0.45f * eased);
+
+        // Normalised position 0..1 (clamped).
+        float t = (hint.max > hint.min) ? (value - hint.min) / (hint.max - hint.min) : 0f;
+        t = Math.max(0f, Math.min(1f, t));
+
+        int filledW = Math.round(w * t);
+        if (filledW > 0) {
+            // Use the user-picked accent colour. DEFAULT accent = neutral
+            // white/dark so it matches the original look.
+            int fillColor = MenuTheme.ACCENT_USER;
+            HudCardRenderer.drawOverlayCard(ctx, x, y, Math.max(filledW, h), h, r,
+                    fillColor, 0.95f * eased);
+        }
+
+        // Thumb — slightly taller than track so it pops above.
+        int thumbSize = Math.max(dp(10), h + dp(4));
+        float thumbXf = x + (w - thumbSize) * t;
+        int thumbX = Math.round(thumbXf);
+        int thumbY = y + (h - thumbSize) / 2;
+        float thumbR = thumbSize * 0.5f;
+        // Shadow.
+        HudCardRenderer.drawOverlayCard(ctx, thumbX, thumbY + 1,
+                thumbSize, thumbSize, thumbR, 0xFF000000, 0.22f * eased);
+        // Body.
+        HudCardRenderer.drawOverlayCard(ctx, thumbX, thumbY,
+                thumbSize, thumbSize, thumbR, 0xFFFFFFFF, 1.0f * eased);
+        // Hairline ring.
+        HudCardRenderer.drawShaderOutline(ctx, thumbX, thumbY,
+                thumbSize, thumbSize, thumbR, 0.4f, 0.18f * eased);
+    }
+
+    /** Mouse-X → value mapped via slider geometry, snapped and clamped. */
+    private float sliderValueFor(SettingRow row, double mouseX) {
+        SliderHint h = row.hint;
+        if (h == null) return 0f;
+        float t = (float) ((mouseX - row.sliderX) / Math.max(1, row.sliderW));
+        t = Math.max(0f, Math.min(1f, t));
+        float raw = h.min + (h.max - h.min) * t;
+        float snapped = snap(raw, h.step);
+        return Math.max(h.min, Math.min(h.max, snapped));
+    }
+
+    // ---------- Apple switch + icons + chevrons ----------
+
+    /**
+     * iOS-style toggle. All three layers use shader-AA rounded boxes so the
+     * pill stays smooth even at the small on-screen sizes a typical menu row
+     * forces it into.
+     *
+     *   1. Track       — full pill, colour lerps OFF→ON with {@code knob}.
+     *   2. Outline     — 0.5-px hairline so the off-state track is visible
+     *                    against a glassy panel background.
+     *   3. Knob        — circle, lerps colour & x. Subtle shadow underneath
+     *                    gives a 1-px sense of depth without going skeuomorphic.
+     */
+    private void drawAppleSwitch(DrawContext ctx, int x, int y, int w, int h, float knob, float eased) {
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        float r = h * 0.5f;
+
+        // Track — muted in OFF state, fades to the user's accent colour as
+        // the toggle animates ON (Apple-style coloured ON track). On the
+        // DEFAULT accent the "on" colour stays neutral white, preserving the
+        // original look.
+        int trackOff = light ? 0xFFC8C8D0 : 0xFF2F2F3F;
+        int trackOn  = MenuTheme.ACCENT_USER;
+        int trackColor = MenuTheme.lerpColor(trackOff, trackOn, knob);
+        HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, r, trackColor, 0.94f * eased);
+
+        // Hairline outline — sharper definition on glassy backgrounds.
+        HudCardRenderer.drawShaderOutline(ctx, x, y, w, h, r, 0.4f, 0.18f * eased);
+
+        // Knob geometry: 86 % of track height (Apple ratio ≈ 27/31).
+        int knobInset = Math.max(2, Math.round(h * 0.10f));
+        int knobSize = h - knobInset * 2;
+        int knobMinX = x + knobInset;
+        int knobMaxX = x + w - knobSize - knobInset;
+        float knobXf = knobMinX + (knobMaxX - knobMinX) * knob;
+        int knobX = Math.round(knobXf);
+        float knobR = knobSize * 0.5f;
+
+        // 1-px shadow underneath the knob — gives depth without skeuomorphism.
+        HudCardRenderer.drawOverlayCard(ctx, knobX, y + knobInset + 1,
+                knobSize, knobSize, knobR, 0xFF000000, 0.18f * eased);
+
+        // Knob fill: dark when OFF, white when ON. Lerps smoothly during the
+        // animation so the colour change reads as a single motion with the slide.
+        int knobOff = light ? 0xFF6F6F7A : 0xFF1B1B26;
+        int knobOn  = 0xFFFFFFFF;
+        int knobColor = MenuTheme.lerpColor(knobOff, knobOn, knob);
+        HudCardRenderer.drawOverlayCard(ctx, knobX, y + knobInset,
+                knobSize, knobSize, knobR, knobColor, eased);
+
+        // Tiny inner ring on the knob — adds a premium "machined" feel.
+        HudCardRenderer.drawShaderOutline(ctx, knobX, y + knobInset,
+                knobSize, knobSize, knobR, 0.3f, 0.10f * eased);
+    }
+
+    private void drawChevronLeft(DrawContext ctx, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = color & 0x00FFFFFF | 0xFF000000;
+        int thick = Math.max(1, size / 8);
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        int reach = size / 3;
+        // Two AA pills forming the chevron's V (rotated approximation via stepped tiny pills).
+        for (int i = 0; i <= reach; i++) {
+            float fade = alpha * (1.0f - i * 0.025f);
+            HudCardRenderer.drawOverlayCard(ctx, cx - i, cy - (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
+            HudCardRenderer.drawOverlayCard(ctx, cx - i, cy + (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
+        }
+    }
+
+    private void drawChevronRight(DrawContext ctx, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = color & 0x00FFFFFF | 0xFF000000;
+        int thick = Math.max(1, size / 8);
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        int reach = size / 3;
+        for (int i = 0; i <= reach; i++) {
+            float fade = alpha * (1.0f - i * 0.025f);
+            HudCardRenderer.drawOverlayCard(ctx, cx + i, cy - (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
+            HudCardRenderer.drawOverlayCard(ctx, cx + i, cy + (reach - i),
+                    thick, thick, thick / 2.0f, rgb, fade);
+        }
+    }
+
+    /**
+     * Smooth (shader-AA) category icons. All shapes stay strictly inside the
+     * (x, y, size, size) bounding box so icons sit cleanly aligned with text.
+     */
+    /** Per-module mini icon. Drawn at very small sizes (~12 px), so each
+     *  glyph is built from a handful of rectangles / outline calls — anything
+     *  more elaborate would just be muddy at that scale. */
+    private void drawModuleIcon(DrawContext ctx, ModuleIcon icon, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = (color & 0x00FFFFFF) | 0xFF000000;
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        int s1 = Math.max(1, size / 8);  // thin stroke
+        int s2 = Math.max(2, size / 5);  // chunky stroke
+        switch (icon) {
+            case POTION -> {
+                // Flask: small neck on top + rounded body.
+                int neckW = Math.max(2, size / 3);
+                int neckH = Math.max(2, size / 4);
+                int bodyW = Math.max(4, size - s1 * 2);
+                int bodyH = Math.max(4, size - neckH - 1);
+                HudCardRenderer.drawOverlayCard(ctx, cx - neckW / 2, y, neckW, neckH, 0.5f, rgb, alpha * 0.85f);
+                HudCardRenderer.drawOverlayCard(ctx, cx - bodyW / 2, y + neckH, bodyW, bodyH,
+                        bodyW * 0.4f, rgb, alpha);
+            }
+            case CLOCK -> {
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, size / 2.0f, 1.0f, alpha);
+                // Hour hand up, minute hand right.
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y + size / 4,
+                        s1, cy - (y + size / 4), s1 / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx, cy - s1 / 2,
+                        (x + size - 2) - cx, s1, s1 / 2.0f, rgb, alpha);
+            }
+            case KEY -> {
+                // Rounded square + small tab on top.
+                int tab = Math.max(2, size / 4);
+                HudCardRenderer.drawShaderOutline(ctx, x, y + tab, size, size - tab,
+                        Math.max(1, size / 5), 1.0f, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - tab / 2, y, tab, tab + 1, tab * 0.3f, rgb, alpha);
+            }
+            case BAR -> {
+                // Horizontal pill centred vertically.
+                int bH = Math.max(3, size / 2);
+                HudCardRenderer.drawOverlayCard(ctx, x, cy - bH / 2, size, bH, bH * 0.5f, rgb, alpha);
+            }
+            case GRID -> {
+                // 3x3 of small squares.
+                int cell = Math.max(2, size / 4);
+                int gap = Math.max(1, (size - cell * 3) / 2);
+                for (int row = 0; row < 3; row++) {
+                    for (int col = 0; col < 3; col++) {
+                        int px = x + col * (cell + gap);
+                        int py = y + row * (cell + gap);
+                        HudCardRenderer.drawOverlayCard(ctx, px, py, cell, cell, 0.5f, rgb, alpha);
+                    }
+                }
+            }
+            case SHIELD -> {
+                // Rounded-top, pointed bottom — approximated via two stacked rounded rects.
+                int topH = Math.max(3, size * 2 / 3);
+                HudCardRenderer.drawOverlayCard(ctx, x, y, size, topH, size * 0.35f, rgb, alpha * 0.85f);
+                int botSize = size - topH;
+                HudCardRenderer.drawOverlayCard(ctx, x + size / 4, y + topH,
+                        size / 2, botSize, size * 0.25f, rgb, alpha);
+            }
+            case HOTBAR -> {
+                // 5 small slots horizontally (compressed version of MC hotbar).
+                int slots = 5;
+                int slotW = Math.max(1, (size - (slots - 1)) / slots);
+                int slotH = Math.max(3, size * 2 / 3);
+                for (int i = 0; i < slots; i++) {
+                    int px = x + i * (slotW + 1);
+                    HudCardRenderer.drawOverlayCard(ctx, px, cy - slotH / 2, slotW, slotH,
+                            slotW * 0.25f, rgb, alpha * (i == 2 ? 1.0f : 0.6f));
+                }
+            }
+            case HEART -> {
+                // Two small lobes + downward triangle (approximated).
+                int lobe = Math.max(3, size * 2 / 5);
+                HudCardRenderer.drawOverlayCard(ctx, x, y + s1, lobe, lobe, lobe * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - lobe, y + s1, lobe, lobe, lobe * 0.5f, rgb, alpha);
+                // Body
+                HudCardRenderer.drawOverlayCard(ctx, x + s1, y + lobe / 2,
+                        size - s1 * 2, size - lobe / 2 - s1, s1, rgb, alpha);
+                // Bottom point — narrowing rects
+                for (int i = 0; i < s2 && (y + size - i) > y; i++) {
+                    int w = Math.max(1, size - i * 2 - s1 * 2);
+                    HudCardRenderer.drawOverlayCard(ctx, cx - w / 2, y + size - s2 + i,
+                            w, 1, 0.5f, rgb, alpha);
+                }
+            }
+            case SWORD -> {
+                // Diagonal blade (stepped rects from bottom-left to top-right).
+                for (int i = 0; i < size - 2; i++) {
+                    HudCardRenderer.drawOverlayCard(ctx, x + i, y + size - 2 - i, s1 + 1, s1 + 1,
+                            s1 * 0.5f, rgb, alpha);
+                }
+                // Hilt at bottom-left, perpendicular short bar.
+                HudCardRenderer.drawOverlayCard(ctx, x, y + size - s2, s2, s1, s1 * 0.5f, rgb, alpha);
+            }
+            case CROWN -> {
+                // Three triangular spikes + base bar.
+                int spikeH = Math.max(3, size / 2);
+                int baseY = y + size - s2;
+                HudCardRenderer.drawOverlayCard(ctx, x, baseY, size, s2, s2 * 0.3f, rgb, alpha);
+                int spikeW = Math.max(1, size / 5);
+                HudCardRenderer.drawOverlayCard(ctx, x, baseY - spikeH, spikeW, spikeH, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - spikeW / 2, baseY - spikeH - 1,
+                        spikeW, spikeH + 1, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - spikeW, baseY - spikeH,
+                        spikeW, spikeH, 0.5f, rgb, alpha);
+            }
+            case TARGET -> {
+                // Concentric rings + centre dot.
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, size / 2.0f, 1.0f, alpha);
+                int inner = size - s2 * 2;
+                HudCardRenderer.drawShaderOutline(ctx, x + s2, y + s2, inner, inner, inner / 2.0f, 1.0f, alpha * 0.75f);
+                int dot = Math.max(2, size / 4);
+                HudCardRenderer.drawOverlayCard(ctx, cx - dot / 2, cy - dot / 2, dot, dot,
+                        dot * 0.5f, rgb, alpha);
+            }
+            case DROP -> {
+                // Teardrop: round bottom, pointed top.
+                int dropW = Math.max(3, size * 3 / 5);
+                int round = size - s2;
+                HudCardRenderer.drawOverlayCard(ctx, cx - dropW / 2, y + s2, dropW, round - s2,
+                        dropW * 0.5f, rgb, alpha);
+                // Pointed top - stacked narrowing rects
+                for (int i = 0; i < s2 + 1; i++) {
+                    int w = Math.max(1, dropW - (s2 - i) * 2);
+                    HudCardRenderer.drawOverlayCard(ctx, cx - w / 2, y + i, w, 1, 0.5f, rgb, alpha);
+                }
+            }
+            case SPARK -> {
+                // Centre dot + 4 short radial rays.
+                int dot = Math.max(2, size / 4);
+                HudCardRenderer.drawOverlayCard(ctx, cx - dot / 2, cy - dot / 2, dot, dot,
+                        dot * 0.5f, rgb, alpha);
+                int rayLen = Math.max(2, size / 3);
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y, s1, rayLen, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y + size - rayLen, s1, rayLen, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x, cy - s1 / 2, rayLen, s1, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - rayLen, cy - s1 / 2, rayLen, s1, s1 * 0.5f, rgb, alpha);
+            }
+            case ARROW_UP -> {
+                // Arrow shaft + head (stacked widening rects).
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y + size / 3,
+                        s1, size - size / 3, s1 * 0.5f, rgb, alpha);
+                int head = size * 2 / 3;
+                for (int i = 0; i < head / 2; i++) {
+                    int w = (i + 1) * 2;
+                    HudCardRenderer.drawOverlayCard(ctx, cx - w / 2, y + head / 2 - i,
+                            w, 1, 0.5f, rgb, alpha);
+                }
+            }
+            case CLOUD -> {
+                // Three overlapping ellipses (approx with circles).
+                int small = Math.max(3, size / 2);
+                int big = Math.max(4, size * 3 / 5);
+                HudCardRenderer.drawOverlayCard(ctx, x, cy - small / 2 + s1, small, small,
+                        small * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - small, cy - small / 2 + s1,
+                        small, small, small * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - big / 2, y + 1, big, big,
+                        big * 0.5f, rgb, alpha);
+                // Flat bottom
+                HudCardRenderer.drawOverlayCard(ctx, x, y + size - s2, size, s2,
+                        s2 * 0.3f, rgb, alpha);
+            }
+            case FOG -> {
+                // Three horizontal lines of varying widths and offsets.
+                int lineH = Math.max(1, size / 6);
+                int spaceY = (size - lineH * 3) / 4;
+                HudCardRenderer.drawOverlayCard(ctx, x,           y + spaceY,                   size,     lineH, lineH * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + s1,      y + spaceY * 2 + lineH,       size - s2, lineH, lineH * 0.5f, rgb, alpha * 0.85f);
+                HudCardRenderer.drawOverlayCard(ctx, x,           y + spaceY * 3 + lineH * 2,   size - s1, lineH, lineH * 0.5f, rgb, alpha * 0.7f);
+            }
+            case FLAME -> {
+                // Teardrop pointing up.
+                int w = Math.max(3, size * 3 / 5);
+                HudCardRenderer.drawOverlayCard(ctx, cx - w / 2, y + size / 3, w, size - size / 3,
+                        w * 0.5f, rgb, alpha);
+                for (int i = 0; i < size / 3; i++) {
+                    int ww = Math.max(1, w - (size / 3 - i) * 2);
+                    HudCardRenderer.drawOverlayCard(ctx, cx - ww / 2, y + i, ww, 1, 0.5f, rgb, alpha);
+                }
+            }
+            case CROSSHAIR -> {
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, size / 2.0f, 1.0f, alpha);
+                int tick = Math.max(2, size / 4);
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y + 1, s1, tick, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y + size - tick - 1, s1, tick, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + 1, cy - s1 / 2, tick, s1, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - tick - 1, cy - s1 / 2, tick, s1, s1 * 0.5f, rgb, alpha);
+            }
+            case HAND -> {
+                // Palm: rounded rect + 3 small "fingers" on top.
+                int palmH = size * 2 / 3;
+                HudCardRenderer.drawOverlayCard(ctx, x, y + size - palmH, size, palmH,
+                        size * 0.25f, rgb, alpha);
+                int fingerW = Math.max(1, size / 5);
+                int fingerH = size - palmH + 1;
+                int gap = (size - fingerW * 3) / 2;
+                for (int i = 0; i < 3; i++) {
+                    HudCardRenderer.drawOverlayCard(ctx, x + i * (fingerW + gap),
+                            y + size - palmH - fingerH, fingerW, fingerH, fingerW * 0.5f, rgb, alpha);
+                }
+            }
+            case ACCESSIBILITY -> {
+                HudCardRenderer.drawShaderOutline(ctx, x, y + size / 3, size * 2 / 3, size * 2 / 3,
+                        size / 3.0f, 1.0f, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y, s1, size / 2, s1 / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx, y + size / 2, size / 3, s1, s1 / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size * 2 / 3, y + size * 2 / 3,
+                        size / 3, s1, s1 / 2.0f, rgb, alpha);
+            }
+            case CURVE -> {
+                // Stepped arc rising from bottom-left to top-right.
+                int steps = size;
+                for (int i = 0; i < steps; i++) {
+                    float t = i / (float) Math.max(1, steps - 1);
+                    int px = x + i;
+                    int py = y + size - 1 - Math.round((float)(Math.sin(t * Math.PI * 0.5) * (size - 2)));
+                    HudCardRenderer.drawOverlayCard(ctx, px, py, s1, s1, s1 * 0.5f, rgb, alpha);
+                }
+            }
+            case WAVE -> {
+                // Sine wave across the width.
+                int steps = size;
+                int amp = size / 3;
+                for (int i = 0; i < steps; i++) {
+                    float t = i / (float) Math.max(1, steps - 1);
+                    int px = x + i;
+                    int py = cy + Math.round((float)(Math.sin(t * Math.PI * 2) * amp));
+                    HudCardRenderer.drawOverlayCard(ctx, px, py - s1 / 2, s1, s1, s1 * 0.5f, rgb, alpha);
+                }
+            }
+            case PIN -> {
+                // Map pin: circle top + downward triangle.
+                int circ = Math.max(4, size * 2 / 3);
+                HudCardRenderer.drawShaderOutline(ctx, cx - circ / 2, y, circ, circ,
+                        circ / 2.0f, 1.0f, alpha);
+                int dot = Math.max(2, circ / 3);
+                HudCardRenderer.drawOverlayCard(ctx, cx - dot / 2, y + circ / 2 - dot / 2,
+                        dot, dot, dot * 0.5f, rgb, alpha);
+                // Triangle tail
+                int tail = size - circ;
+                for (int i = 0; i < tail; i++) {
+                    int w = Math.max(1, tail - i);
+                    HudCardRenderer.drawOverlayCard(ctx, cx - w / 2, y + circ + i, w, 1, 0.5f, rgb, alpha);
+                }
+            }
+            case APPLE -> {
+                // Round body + small stem.
+                int body = size - s2;
+                HudCardRenderer.drawOverlayCard(ctx, x, y + s2, body, body,
+                        body * 0.45f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - s2, y + s2, s2, body,
+                        body * 0.45f, rgb, alpha);
+                // Stem
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y, s1, s2, s1 * 0.5f, rgb, alpha);
+            }
+            case REFRESH -> {
+                // Open circle (gap on top-right) + arrowhead.
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, size / 2.0f, 1.2f, alpha);
+                // Mask the gap by drawing background-coloured square — actually skip and just add arrowhead.
+                // Arrowhead at top-right.
+                int ar = Math.max(2, size / 4);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - ar, y, ar, s1, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - s1, y, s1, ar, s1 * 0.5f, rgb, alpha);
+            }
+            case LINK -> {
+                // Two interlocking ovals (chain links).
+                int oW = Math.max(3, size / 2);
+                int oH = Math.max(3, size * 2 / 5);
+                HudCardRenderer.drawShaderOutline(ctx, x, cy - oH / 2, oW, oH, oH * 0.5f, 1.0f, alpha);
+                HudCardRenderer.drawShaderOutline(ctx, x + size - oW, cy - oH / 2, oW, oH,
+                        oH * 0.5f, 1.0f, alpha);
+            }
+            case SUN -> {
+                int discR = Math.max(2, size / 3);
+                HudCardRenderer.drawOverlayCard(ctx, cx - discR, cy - discR, discR * 2, discR * 2,
+                        discR, rgb, alpha);
+                int rayLen = Math.max(1, size / 4);
+                // 8 rays N/S/E/W + diagonals
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y, s1, rayLen, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - s1 / 2, y + size - rayLen, s1, rayLen, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x, cy - s1 / 2, rayLen, s1, s1 * 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - rayLen, cy - s1 / 2, rayLen, s1, s1 * 0.5f, rgb, alpha);
+            }
+            case BLUR -> {
+                // Three horizontal soft pills of decreasing opacity.
+                int bH = Math.max(2, size / 5);
+                int spaceY = (size - bH * 3) / 4;
+                HudCardRenderer.drawOverlayCard(ctx, x, y + spaceY, size, bH, bH * 0.5f, rgb, alpha * 0.4f);
+                HudCardRenderer.drawOverlayCard(ctx, x, y + spaceY * 2 + bH, size, bH, bH * 0.5f, rgb, alpha * 0.7f);
+                HudCardRenderer.drawOverlayCard(ctx, x, y + spaceY * 3 + bH * 2, size, bH, bH * 0.5f, rgb, alpha);
+            }
+            case THEME -> {
+                // Half-circle (sun) + crescent (moon) merged.
+                HudCardRenderer.drawOverlayCard(ctx, x, y, size / 2, size, 0.5f, rgb, alpha);
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, size / 2.0f, 1.0f, alpha);
+            }
+        }
+    }
+
+    private void drawCategoryIcon(DrawContext ctx, Category cat, int x, int y, int size, int color) {
+        float alpha = ((color >>> 24) & 0xFF) / 255.0f;
+        int rgb = color & 0x00FFFFFF | 0xFF000000;
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+        switch (cat) {
+            case VISUALS -> {
+                // Eye: outlined oval + filled pupil.
+                int eyeH = Math.max(4, size * 3 / 5);
+                int eyeY = cy - eyeH / 2;
+                HudCardRenderer.drawShaderOutline(ctx, x, eyeY, size, eyeH, eyeH / 2.0f, 1.2f, alpha);
+                int pupil = Math.max(3, size / 3);
+                HudCardRenderer.drawOverlayCard(ctx, cx - pupil / 2, cy - pupil / 2,
+                        pupil, pupil, pupil / 2.0f, rgb, alpha);
+            }
+            case HUD -> {
+                // Rounded window with a header bar.
+                int radius = Math.max(2, size / 4);
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, radius, 1.2f, alpha);
+                int barH = Math.max(2, size / 5);
+                int barInset = Math.max(2, size / 6);
+                HudCardRenderer.drawOverlayCard(ctx, x + barInset, y + barInset,
+                        size - barInset * 2, barH, barH / 2.0f, rgb, alpha * 0.80f);
+            }
+            case UTILITIES -> {
+                // Three even sliders with offset knobs.
+                int line = Math.max(2, size / 6);
+                int totalSpace = size - line * 3;
+                int gap = Math.max(1, totalSpace / 2);
+                int knob = Math.max(3, line + 2);
+                int[] knobPos = { size / 3, size * 2 / 3, size / 2 };
+                for (int i = 0; i < 3; i++) {
+                    int yy = y + i * (line + gap);
+                    HudCardRenderer.drawOverlayCard(ctx, x, yy, size, line, line / 2.0f, rgb, alpha * 0.65f);
+                    int kx = x + knobPos[i] - knob / 2;
+                    int ky = yy + line / 2 - knob / 2;
+                    // Clamp knob fully inside icon bounds.
+                    kx = Math.max(x, Math.min(x + size - knob, kx));
+                    ky = Math.max(y, Math.min(y + size - knob, ky));
+                    HudCardRenderer.drawOverlayCard(ctx, kx, ky, knob, knob, knob / 2.0f, rgb, alpha);
+                }
+            }
+            case PVP -> {
+                // Crosshair: outlined ring + 4 tick marks + center dot.
+                HudCardRenderer.drawShaderOutline(ctx, x, y, size, size, size / 2.0f, 1.2f, alpha);
+                int tick = Math.max(2, size / 5);
+                int tw = Math.max(1, size / 8);
+                // Top, bottom, left, right ticks inside the ring.
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y + 1,                  tw, tick, tw / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y + size - tick - 1,    tw, tick, tw / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + 1,                cy - tw / 2,   tick, tw, tw / 2.0f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - tick - 1,  cy - tw / 2,   tick, tw, tw / 2.0f, rgb, alpha);
+                int dot = Math.max(2, size / 5);
+                HudCardRenderer.drawOverlayCard(ctx, cx - dot / 2, cy - dot / 2,
+                        dot, dot, dot / 2.0f, rgb, alpha);
+            }
+            case MENU -> {
+                // Gear: outer ring, four square teeth inset toward the edges, central hub.
+                int ringInset = Math.max(1, size / 10);
+                HudCardRenderer.drawShaderOutline(ctx, x + ringInset, y + ringInset,
+                        size - ringInset * 2, size - ringInset * 2,
+                        (size - ringInset * 2) / 2.0f, 1.4f, alpha);
+                int tooth = Math.max(2, size / 5);
+                int tw = Math.max(2, size / 5);
+                // Vertical teeth top + bottom
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y,
+                        tw, tooth, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, cx - tw / 2, y + size - tooth,
+                        tw, tooth, 0.5f, rgb, alpha);
+                // Horizontal teeth left + right
+                HudCardRenderer.drawOverlayCard(ctx, x,                cy - tw / 2,
+                        tooth, tw, 0.5f, rgb, alpha);
+                HudCardRenderer.drawOverlayCard(ctx, x + size - tooth, cy - tw / 2,
+                        tooth, tw, 0.5f, rgb, alpha);
+                int hub = Math.max(3, size / 4);
+                HudCardRenderer.drawOverlayCard(ctx, cx - hub / 2, cy - hub / 2,
+                        hub, hub, hub / 2.0f, rgb, alpha);
+            }
+        }
+    }
+
+    // ---------- Mouse ----------
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
-        int button = click.button();
-        double mx = click.x();
-        double my = click.y();
+        if (super.mouseClicked(click, doubled)) return true;
+        if (click.button() != 0) return false;
 
-        // Search field
-        if (searchField != null && searchField.mouseClicked(click, doubled)) {
-            return true;
-        }
-        if (super.mouseClicked(click, doubled)) {
+        // Colour picker, when open, takes clicks before anything else.
+        if (colorRow != null && colorPickerClick(click.x(), click.y())) {
             return true;
         }
 
-        // Color picker first (active)
-        if (activeColorEntry != null && tryPickColor(activeColorEntry, mx, my)) {
+        // App-rail (left strip) — top priority so it works from any view.
+        if (hoveredRailIndex >= 0) {
+            AppView clicked = AppView.values()[hoveredRailIndex];
+            if (clicked != currentView) {
+                currentView = clicked;
+                // Reset drill-down so switching back to SETTINGS lands on the list.
+                detailTarget = null;
+                detailSettings.clear();
+                contentScroll = 0;
+                searchFocused = false;
+            }
             return true;
         }
 
-        // Dock clicks
-        if (hoveredDockIndex >= 0) {
-            List<Category> visible = visibleCategories();
-            if (hoveredDockIndex < visible.size()) {
-                selectedCategory = visible.get(hoveredDockIndex);
-                if (searchField != null) {
-                    searchField.setText("");
-                }
+        // Search bar: focus on click in, clear on `×`, unfocus on click outside.
+        if (detailTarget == null) {
+            if (hoveredSearchClear) {
                 searchQuery = "";
-                scroll = 0;
-                closeSidePanel();
-                playToggleSound();
-            } else if (hoveredDockIndex == visible.size()) {
-                if (client != null) {
-                    client.setScreen(new MultiKeyBindingsScreen(this));
-                }
-            } else {
-                Util.getOperatingSystem().open(VibeVisualsConfigManager.getConfigPath().toFile());
+                contentScroll = 0;
+                return true;
             }
+            if (hoveredSearchBox) {
+                searchFocused = true;
+                return true;
+            }
+            // Anywhere else: drop focus.
+            if (searchFocused) searchFocused = false;
+        }
+
+        // Header `<` closes the screen.
+        if (hoveredBack) { this.close(); return true; }
+
+        // Detail back chevron.
+        if (detailTarget != null && hoveredDetailBack) {
+            detailTarget = null;
+            detailSettings.clear();
             return true;
         }
 
-        // Category tabs
+        // Sidebar category change resets drill-down.
         if (hoveredCategoryIndex >= 0) {
-            List<Category> visible = visibleCategories();
-            selectedCategory = visible.get(hoveredCategoryIndex);
-            if (searchField != null) {
-                searchField.setText("");
+            Category cat = Category.values()[hoveredCategoryIndex];
+            if (cat != selected) {
+                selected = cat;
+                detailTarget = null;
+                detailSettings.clear();
+                contentScroll = 0;
             }
-            searchQuery = "";
-            scroll = 0;
-            closeSidePanel();
-            playToggleSound();
             return true;
         }
 
-        // Feature card / toggle
-        if (hoveredFeature != null) {
-            if (button == 0) {
-                // LMB anywhere on the card toggles
-                hoveredFeature.enabledSetter.accept(!hoveredFeature.enabled.get());
-                playToggleSound();
+        // Detail: enabled toggle.
+        if (detailTarget != null) {
+            FeatureEntry t = detailTarget;
+            // Themes-detail: clicking a tile applies + persists the accent.
+            if ("Themes".equals(t.name) && hoveredThemeIndex >= 0) {
+                ru.suppelemen.vibevisuals.theme.AccentTheme picked =
+                        ru.suppelemen.vibevisuals.theme.AccentTheme.values()[hoveredThemeIndex];
+                VibeVisualsConfigManager.get().menu.accent = picked.name();
+                VibeVisualsConfigManager.save();
+                MenuTheme.applyAccent(picked.name());
+                return true;
+            }
+            if (insideRect(click.x(), click.y(), t.detailSwitchX, t.detailSwitchY, t.detailSwitchW, t.detailSwitchH, dp(3))) {
+                t.enabledSetter.accept(!t.enabled.get());
                 saveAndReload();
                 return true;
             }
-            if (button == 1) {
-                // RMB opens / toggles side panel
-                if (settingsTarget == hoveredFeature) {
-                    closeSidePanel();
-                } else {
-                    openSidePanel(hoveredFeature);
-                }
-                playHoverSound();
-                return true;
-            }
-        }
-
-        // Click inside side panel
-        if (settingsTarget != null && isInsideSidePanel(mx, my)) {
-            SettingEntry entry = settingAt(mx, my);
-            if (entry != null) {
-                Class<?> type = entry.field.getType();
-                if (type == boolean.class && button == 0) {
-                    writeBoolean(settingsTarget.config, entry.field, !readBoolean(settingsTarget.config, entry.field));
-                    playToggleSound();
+            if (hoveredSettingRow != null) {
+                SettingRow r = hoveredSettingRow;
+                if (r.field.getType() == boolean.class
+                        && insideRect(click.x(), click.y(), r.switchX, r.switchY, r.switchW, r.switchH, dp(3))) {
+                    writeBool(t.config, r.field, !readBool(t.config, r.field));
                     saveAndReload();
                     return true;
                 }
-                if (isColorField(entry.field) && button == 0) {
-                    activeColorEntry = entry;
+                // Slider — click anywhere on the track jumps the thumb and starts a drag.
+                if ((r.field.getType() == int.class || r.field.getType() == float.class)
+                        && !isColorField(r.field) && r.hint != null
+                        && insideRect(click.x(), click.y(), r.sliderX, r.sliderY - dp(4),
+                                       r.sliderW, r.sliderH + dp(8), dp(2))) {
+                    draggingSlider = r;
+                    float v = sliderValueFor(r, click.x());
+                    writeNumber(t.config, r.field, v);
                     return true;
                 }
+                // Colour swatch — open the picker.
+                if (isColorField(r.field)
+                        && insideRect(click.x(), click.y(), r.swatchX, r.swatchY, r.swatchSize, r.swatchSize, dp(3))) {
+                    openColorPicker(t, r);
+                    return true;
+                }
+                // String option — click the row to cycle to the next choice.
+                if (r.field.getType() == String.class) {
+                    String[] opts = stringOptionsFor(t.config, r.field);
+                    if (opts != null
+                            && insideRect(click.x(), click.y(), r.x, r.y, r.width, r.height, 0)) {
+                        String cur = fieldToString(t.config, r.field);
+                        int idx = 0;
+                        for (int i = 0; i < opts.length; i++) {
+                            if (opts[i].equalsIgnoreCase(cur)) { idx = i; break; }
+                        }
+                        writeString(t.config, r.field, opts[(idx + 1) % opts.length]);
+                        saveAndReload();
+                        return true;
+                    }
+                }
             }
-            return true;
+            return true; // consume clicks inside detail page
         }
 
-        // Clicking elsewhere closes side panel
-        if (settingsTarget != null) {
-            closeSidePanel();
+        // List view: switch toggles, row body opens detail.
+        if (hoveredRow != null) {
+            if (hoveredRow.customAction != null) {
+                hoveredRow.customAction.run();
+                return true;
+            }
+            if (hoveredOnSwitch) {
+                hoveredRow.enabledSetter.accept(!hoveredRow.enabled.get());
+                saveAndReload();
+                return true;
+            } else {
+                openDetail(hoveredRow);
+                return true;
+            }
         }
-        // Clicking elsewhere also blurs picker
-        activeColorEntry = null;
         return false;
     }
 
-    private boolean isInsideSidePanel(double mx, double my) {
-        if (settingsTarget == null) {
-            return false;
-        }
-        int sw = MenuTheme.SIDE_PANEL_WIDTH;
-        int sh = sidePanelHeight;
-        int wx = windowX();
-        int ww = windowWidth();
-        int x = settingsSide == Side.RIGHT ? wx + ww + 12 : wx - sw - 12;
-        if (settingsSide == Side.RIGHT && x + sw > width - 8) {
-            x = width - sw - 8;
-        }
-        if (settingsSide == Side.LEFT && x < 8) {
-            x = 8;
-        }
-        int y = settingsTarget.y + settingsTarget.height / 2 - sh / 2;
-        y = Math.max(windowY(), Math.min(windowY() + windowHeight() - sh, y));
-        y = Math.max(12, Math.min(height - sh - 12, y));
-        return mx >= x && mx <= x + sw && my >= y && my <= y + sh;
+    private void openDetail(FeatureEntry f) {
+        detailTarget = f;
+        rebuildDetailSettings(f);
     }
 
-    private SettingEntry settingAt(double mx, double my) {
-        if (settingsTarget == null) {
-            return null;
+    private void rebuildDetailSettings(FeatureEntry f) {
+        detailSettings.clear();
+        if (f == null || f.config == null) return;
+        for (Field field : f.config.getClass().getFields()) {
+            if (Modifier.isStatic(field.getModifiers())) continue;
+            if (!isEditable(field)) continue;
+            // Skip the "enabled" boolean — represented by the top toggle.
+            if (field.getName().equalsIgnoreCase("enabled")) continue;
+            detailSettings.add(new SettingRow(field));
         }
-        for (SettingEntry entry : settingEntries) {
-            if (mx >= entry.x && mx <= entry.x + entry.width
-                    && my >= entry.y && my <= entry.y + entry.height) {
-                return entry;
-            }
-        }
-        return null;
     }
 
-    private void openSidePanel(FeatureEntry feature) {
-        settingsTarget = feature;
-        // determine side: based on feature column (right column → side panel on right of window? per spec right column → right side)
-        int gx = gridX();
-        int gw = gridWidth();
-        boolean leftColumn = feature.x < gx + gw / 2;
-        settingsSide = leftColumn ? Side.LEFT : Side.RIGHT;
-        sideSlideProgress = 0.0f;
-        settingsScroll = 0;
-        activeColorEntry = null;
-        rebuildSettings();
+    @Override
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        if (colorRow != null && colorDrag != 0) {
+            updatePickerDrag(click.x(), click.y());
+            return true;
+        }
+        if (draggingSlider != null && detailTarget != null) {
+            float v = sliderValueFor(draggingSlider, click.x());
+            writeNumber(detailTarget.config, draggingSlider.field, v);
+            return true;
+        }
+        return super.mouseDragged(click, deltaX, deltaY);
     }
 
-    private void closeSidePanel() {
-        for (SettingEntry entry : settingEntries) {
-            if (entry.input != null) {
-                remove(entry.input);
-            }
+    @Override
+    public boolean mouseReleased(Click click) {
+        if (colorRow != null && colorDrag != 0) {
+            colorDrag = 0;
+            saveAndReload();
+            return true;
         }
-        settingEntries.clear();
-        settingsTarget = null;
-        activeColorEntry = null;
-        sideSlideProgress = 0.0f;
-    }
-
-    private void rebuildSettings() {
-        for (SettingEntry entry : settingEntries) {
-            if (entry.input != null) {
-                remove(entry.input);
-            }
+        if (draggingSlider != null) {
+            // Persist + re-apply HUD only once the drag finishes — keeps the file
+            // write rate sane.
+            saveAndReload();
+            draggingSlider = null;
+            return true;
         }
-        settingEntries.clear();
-        if (settingsTarget == null || settingsTarget.config == null) {
-            return;
-        }
-        for (Field field : settingsTarget.config.getClass().getFields()) {
-            if (Modifier.isStatic(field.getModifiers()) || !isEditable(field)) {
-                continue;
-            }
-            TextFieldWidget input = null;
-            Class<?> type = field.getType();
-            if (type != boolean.class && !isColorField(field)) {
-                input = new TextFieldWidget(textRenderer, 0, 0, 50, 12, Text.literal(field.getName()));
-                input.setDrawsBackground(false);
-                input.setEditableColor(MenuTheme.TEXT_PRIMARY);
-                input.setMaxLength(48);
-                input.setText(readFieldAsText(settingsTarget.config, field));
-                input.setChangedListener(value -> writeFieldFromText(settingsTarget.config, field, value));
-                addDrawableChild(input);
-            }
-            settingEntries.add(new SettingEntry(field, input));
-        }
+        return super.mouseReleased(click);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        // side panel scroll
-        if (settingsTarget != null && isInsideSidePanel(mouseX, mouseY)) {
-            settingsScroll = Math.max(0, settingsScroll - (int) Math.round(verticalAmount * 14.0));
-            return true;
-        }
-        // grid scroll
-        int gx = gridX();
-        int gy = gridY();
-        int gw = gridWidth();
-        int gh = gridHeight();
-        if (mouseX >= gx && mouseX <= gx + gw && mouseY >= gy && mouseY <= gy + gh) {
-            scroll = Math.max(0, Math.min(maxScroll, scroll - (int) Math.round(verticalAmount * 16.0)));
+        // Scroll the content area when in list view.
+        int pw = panelW();
+        int ph = panelH();
+        int px = (width - pw) / 2;
+        int py = (height - ph) / 2;
+        int cx = px + dp(SIDEBAR_W);
+        int cy = py + dp(HEADER_H);
+        if (detailTarget == null
+                && mouseX >= cx && mouseX <= px + pw
+                && mouseY >= cy && mouseY <= py + ph) {
+            contentScroll = Math.max(0, Math.min(contentMaxScroll,
+                    contentScroll - (int) Math.round(verticalAmount * 18.0)));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
     @Override
-    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
-        if (activeColorEntry != null && tryPickColor(activeColorEntry, click.x(), click.y())) {
+    public boolean charTyped(net.minecraft.client.input.CharInput input) {
+        if (searchFocused && detailTarget == null && input.isValidChar()) {
+            int cp = input.codepoint();
+            if (cp >= ' ' && cp != 127 && searchQuery.length() < 40) {
+                searchQuery += new String(Character.toChars(cp));
+                contentScroll = 0;
+            }
             return true;
         }
-        return super.mouseDragged(click, offsetX, offsetY);
+        return super.charTyped(input);
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
-        if (activeColorEntry != null) {
-            activeColorEntry = null;
+    public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
+        int keyCode = input.key();
+        int modifiers = input.modifiers();
+
+        // Esc: clear query → drop focus → fall through to default close behaviour.
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            if (searchFocused && !searchQuery.isEmpty()) {
+                searchQuery = "";
+                contentScroll = 0;
+                return true;
+            }
+            if (searchFocused) {
+                searchFocused = false;
+                return true;
+            }
         }
-        return super.mouseReleased(click);
+        if (searchFocused && detailTarget == null) {
+            if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_BACKSPACE) {
+                if (!searchQuery.isEmpty()) {
+                    searchQuery = searchQuery.substring(0, searchQuery.length() - 1);
+                    contentScroll = 0;
+                }
+                return true;
+            }
+            if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER
+                    || keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER) {
+                searchFocused = false;
+                return true;
+            }
+        }
+        // Ctrl/Cmd+F focuses search like in any modern app.
+        if ((modifiers & (org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL | org.lwjgl.glfw.GLFW.GLFW_MOD_SUPER)) != 0
+                && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_F) {
+            searchFocused = true;
+            return true;
+        }
+        return super.keyPressed(input);
     }
 
     @Override
     public void close() {
         saveAndReload();
-        if (client != null) {
-            client.setScreen(null);
-        }
+        if (client != null) client.setScreen(null);
     }
 
     @Override
-    public boolean shouldPause() {
-        return false;
+    public boolean shouldPause() { return false; }
+
+    // ---------- Reflection helpers ----------
+
+    // ---------------- Colour picker ----------------
+
+    private void openColorPicker(FeatureEntry target, SettingRow row) {
+        colorTarget = target;
+        colorRow = row;
+        colorDrag = 0;
+        int argb = readIntField(target.config, row.field);
+        int a = (argb >>> 24) & 0xFF;
+        pkA = (a == 0 ? 255 : a) / 255f;
+        float[] hsv = rgbToHsv((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
+        pkH = hsv[0];
+        pkS = hsv[1];
+        pkV = hsv[2];
     }
 
-    // ---------- Helpers ----------
-
-    private static boolean isEditable(Field field) {
-        Class<?> type = field.getType();
-        return type == int.class || type == float.class || type == boolean.class || type == String.class || type == HudCardRenderType.class;
-    }
-
-    private static boolean isColorField(Field field) {
-        return field.getType() == int.class && field.getName().toLowerCase(Locale.ROOT).contains("color");
-    }
-
-    private static int readColor(Object config, Field field) {
-        try {
-            return field.getInt(config);
-        } catch (IllegalAccessException exception) {
-            return 0xFFFFFFFF;
+    private void closeColorPicker() {
+        if (colorRow != null) {
+            saveAndReload();
         }
+        colorRow = null;
+        colorTarget = null;
+        colorDrag = 0;
     }
 
-    private static boolean readBoolean(Object config, Field field) {
-        try {
-            return field.getBoolean(config);
-        } catch (IllegalAccessException exception) {
+    private void commitPickerColor() {
+        if (colorRow == null || colorTarget == null) {
+            return;
+        }
+        int[] rgb = hsvToRgb(pkH, pkS, pkV);
+        int a = Math.round(pkA * 255f) & 0xFF;
+        int argb = (a << 24) | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+        writeIntField(colorTarget.config, colorRow.field, argb);
+    }
+
+    private void drawColorPicker(DrawContext ctx, int mouseX, int mouseY, float eased) {
+        // Anchor the popup just below the swatch that opened it.
+        int sv = dp(70);
+        int barW = dp(12);
+        int gap = dp(8);
+        int pad = dp(8);
+        int popW = pad * 2 + sv + gap + barW + gap + barW;
+        int popH = pad * 2 + sv + dp(16);
+
+        int ax = colorRow.swatchX + colorRow.swatchSize - popW;
+        int ay = colorRow.swatchY + colorRow.swatchSize + dp(4);
+        ax = Math.max(dp(4), Math.min(width - popW - dp(4), ax));
+        ay = Math.max(dp(4), Math.min(height - popH - dp(4), ay));
+
+        // Backing card.
+        drawSdfCard(ctx, ax, ay, popW, popH, dp(8), 0.97f);
+        HudCardRenderer.drawShaderOutline(ctx, ax, ay, popW, popH, dp(8), 0.55f, 0.35f);
+
+        pkSvX = ax + pad;
+        pkSvY = ay + pad;
+        pkSvSize = sv;
+        pkBarW = barW;
+        pkBarH = sv;
+        pkHueX = pkSvX + sv + gap;
+        pkAlphaX = pkHueX + barW + gap;
+
+        // SV square — cells of hue@(s,v). 24×24 is smooth enough and cheap.
+        int n = 24;
+        float cw = sv / (float) n;
+        for (int xi = 0; xi < n; xi++) {
+            for (int yi = 0; yi < n; yi++) {
+                float s = xi / (float) (n - 1);
+                float v = 1f - yi / (float) (n - 1);
+                int[] c = hsvToRgb(pkH, s, v);
+                int col = 0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2];
+                int x0 = pkSvX + Math.round(xi * cw);
+                int y0 = pkSvY + Math.round(yi * cw);
+                int x1 = pkSvX + Math.round((xi + 1) * cw);
+                int y1 = pkSvY + Math.round((yi + 1) * cw);
+                ctx.fill(x0, y0, x1, y1, col);
+            }
+        }
+        // SV cursor.
+        int curX = pkSvX + Math.round(pkS * sv);
+        int curY = pkSvY + Math.round((1f - pkV) * sv);
+        ctx.fill(curX - 1, pkSvY, curX + 1, pkSvY + sv, 0x40000000);
+        ctx.fill(pkSvX, curY - 1, pkSvX + sv, curY + 1, 0x40000000);
+        ctx.fill(curX - 2, curY - 2, curX + 2, curY + 2, 0xFFFFFFFF);
+
+        // Hue bar (vertical rainbow).
+        int hn = sv;
+        for (int yi = 0; yi < hn; yi++) {
+            float hh = yi / (float) (hn - 1);
+            int[] c = hsvToRgb(hh, 1f, 1f);
+            int col = 0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2];
+            ctx.fill(pkHueX, pkSvY + yi, pkHueX + barW, pkSvY + yi + 1, col);
+        }
+        int hueY = pkSvY + Math.round(pkH * sv);
+        ctx.fill(pkHueX - 1, hueY - 1, pkHueX + barW + 1, hueY + 1, 0xFFFFFFFF);
+
+        // Alpha bar (current colour, opaque→transparent over a checker).
+        int[] full = hsvToRgb(pkH, pkS, pkV);
+        for (int yi = 0; yi < sv; yi++) {
+            float av = 1f - yi / (float) (sv - 1);
+            // simple checker backdrop
+            boolean checker = ((yi / 4) % 2) == 0;
+            int bg = checker ? 0xFFBBBBBB : 0xFF777777;
+            ctx.fill(pkAlphaX, pkSvY + yi, pkAlphaX + barW, pkSvY + yi + 1, bg);
+            int a = Math.round(av * 255f) & 0xFF;
+            int col = (a << 24) | (full[0] << 16) | (full[1] << 8) | full[2];
+            ctx.fill(pkAlphaX, pkSvY + yi, pkAlphaX + barW, pkSvY + yi + 1, col);
+        }
+        int alphaY = pkSvY + Math.round((1f - pkA) * sv);
+        ctx.fill(pkAlphaX - 1, alphaY - 1, pkAlphaX + barW + 1, alphaY + 1, 0xFFFFFFFF);
+
+        // Hex readout at the bottom.
+        int a = Math.round(pkA * 255f) & 0xFF;
+        String hex = String.format(Locale.ROOT, "#%02X%02X%02X%02X", a, full[0], full[1], full[2]);
+        drawScaledText(ctx, hex, pkSvX, ay + popH - dp(12), TEXT_DETAIL_LABEL,
+                MenuTheme.withAlpha(MenuTheme.TEXT_PRIMARY, 0.9f));
+    }
+
+    /** Returns true if the click was consumed by the picker. */
+    private boolean colorPickerClick(double mx, double my) {
+        if (colorRow == null) {
             return false;
         }
-    }
-
-    private static void writeBoolean(Object config, Field field, boolean value) {
-        try {
-            field.setBoolean(config, value);
-        } catch (IllegalAccessException ignored) {
+        if (inBox(mx, my, pkSvX, pkSvY, pkSvSize, pkSvSize)) {
+            colorDrag = 1;
+            updatePickerDrag(mx, my);
+            return true;
         }
-    }
-
-    private static String readFieldAsText(Object config, Field field) {
-        try {
-            Object value = field.get(config);
-            return value == null ? "" : value.toString();
-        } catch (IllegalAccessException exception) {
-            return "";
+        if (inBox(mx, my, pkHueX, pkSvY, pkBarW, pkBarH)) {
+            colorDrag = 2;
+            updatePickerDrag(mx, my);
+            return true;
         }
-    }
-
-    private static void writeFieldFromText(Object config, Field field, String value) {
-        try {
-            Class<?> type = field.getType();
-            if (type == int.class) {
-                field.setInt(config, Integer.parseInt(value.trim()));
-            } else if (type == float.class) {
-                field.setFloat(config, Float.parseFloat(value.trim()));
-            } else if (type == boolean.class) {
-                field.setBoolean(config, Boolean.parseBoolean(value.trim()));
-            } else if (type == HudCardRenderType.class) {
-                field.set(config, HudCardRenderType.valueOf(value.trim().toUpperCase(Locale.ROOT)));
-            } else if (type == String.class) {
-                field.set(config, value);
-            }
-            saveAndReload();
-        } catch (IllegalArgumentException | IllegalAccessException ignored) {
+        if (inBox(mx, my, pkAlphaX, pkSvY, pkBarW, pkBarH)) {
+            colorDrag = 3;
+            updatePickerDrag(mx, my);
+            return true;
         }
+        // Click elsewhere closes the picker (and persists).
+        closeColorPicker();
+        return true;
     }
 
+    private void updatePickerDrag(double mx, double my) {
+        if (colorDrag == 1) {
+            pkS = clampf((float) (mx - pkSvX) / pkSvSize, 0f, 1f);
+            pkV = clampf(1f - (float) (my - pkSvY) / pkSvSize, 0f, 1f);
+        } else if (colorDrag == 2) {
+            pkH = clampf((float) (my - pkSvY) / pkBarH, 0f, 1f);
+        } else if (colorDrag == 3) {
+            pkA = clampf(1f - (float) (my - pkSvY) / pkBarH, 0f, 1f);
+        }
+        commitPickerColor();
+    }
+
+    private static boolean inBox(double mx, double my, int x, int y, int w, int h) {
+        return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    }
+
+    private static float clampf(float v, float lo, float hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    private static float[] rgbToHsv(int r, int g, int b) {
+        float rf = r / 255f, gf = g / 255f, bf = b / 255f;
+        float max = Math.max(rf, Math.max(gf, bf));
+        float min = Math.min(rf, Math.min(gf, bf));
+        float d = max - min;
+        float h = 0f;
+        if (d > 0.00001f) {
+            if (max == rf) h = ((gf - bf) / d) % 6f;
+            else if (max == gf) h = (bf - rf) / d + 2f;
+            else h = (rf - gf) / d + 4f;
+            h /= 6f;
+            if (h < 0f) h += 1f;
+        }
+        float s = max <= 0f ? 0f : d / max;
+        return new float[]{h, s, max};
+    }
+
+    private static int[] hsvToRgb(float h, float s, float v) {
+        float r = 0, g = 0, b = 0;
+        int i = (int) Math.floor(h * 6f);
+        float f = h * 6f - i;
+        float p = v * (1f - s);
+        float q = v * (1f - f * s);
+        float t = v * (1f - (1f - f) * s);
+        switch (((i % 6) + 6) % 6) {
+            case 0 -> { r = v; g = t; b = p; }
+            case 1 -> { r = q; g = v; b = p; }
+            case 2 -> { r = p; g = v; b = t; }
+            case 3 -> { r = p; g = q; b = v; }
+            case 4 -> { r = t; g = p; b = v; }
+            default -> { r = v; g = p; b = q; }
+        }
+        return new int[]{Math.round(r * 255f), Math.round(g * 255f), Math.round(b * 255f)};
+    }
+
+    private static boolean isEditable(Field f) {
+        Class<?> t = f.getType();
+        return t == int.class || t == float.class || t == boolean.class || t == String.class
+                || t == HudCardRenderType.class;
+    }
+    private static boolean readBool(Object cfg, Field f) {
+        try { return f.getBoolean(cfg); } catch (IllegalAccessException e) { return false; }
+    }
+    private static void writeBool(Object cfg, Field f, boolean v) {
+        try { f.setBoolean(cfg, v); } catch (IllegalAccessException ignored) {}
+    }
+    private static float readFloat(Object cfg, Field f) {
+        try {
+            if (f.getType() == float.class) return f.getFloat(cfg);
+            if (f.getType() == int.class) return (float) f.getInt(cfg);
+            return 0f;
+        } catch (IllegalAccessException e) { return 0f; }
+    }
+    private static void writeNumber(Object cfg, Field f, float v) {
+        try {
+            if (f.getType() == float.class) f.setFloat(cfg, v);
+            else if (f.getType() == int.class) f.setInt(cfg, Math.round(v));
+        } catch (IllegalAccessException ignored) {}
+    }
+    private static float snap(float v, float step) {
+        if (step <= 0f) return v;
+        return Math.round(v / step) * step;
+    }
+    private static String formatValue(float v, SliderHint h) {
+        if (h.integer) return Integer.toString(Math.round(v));
+        // 2 decimals for small steps, 1 for medium, 0 for whole.
+        if (h.step >= 1f) return Integer.toString(Math.round(v));
+        if (h.step >= 0.1f) return String.format(Locale.ROOT, "%.1f", v);
+        return String.format(Locale.ROOT, "%.2f", v);
+    }
+    private static String fieldToString(Object cfg, Field f) {
+        try {
+            Object v = f.get(cfg);
+            return v == null ? "" : v.toString();
+        } catch (IllegalAccessException e) { return ""; }
+    }
+    private static void writeString(Object cfg, Field f, String v) {
+        try { f.set(cfg, v); } catch (IllegalAccessException ignored) {}
+    }
+    private static int readIntField(Object cfg, Field f) {
+        try { return f.getInt(cfg); } catch (IllegalAccessException e) { return 0; }
+    }
+    private static void writeIntField(Object cfg, Field f, int v) {
+        try { f.setInt(cfg, v); } catch (IllegalAccessException ignored) {}
+    }
+    /** Known choices for cyclable String settings (clicked to cycle in detail). */
+    private static String[] stringOptionsFor(Object cfg, Field f) {
+        String cls = cfg.getClass().getSimpleName();
+        String n = f.getName();
+        if (cls.equals("KillEffectConfig") && n.equals("style"))
+            return new String[]{"BURST", "RING", "FLASH", "LIGHTNING", "SOUL", "BURN"};
+        if (cls.equals("TargetEspConfig") && n.equals("mode"))
+            return new String[]{"COMBO", "RING", "STAR", "ORBIT_PARTICLES", "SPIRAL", "GLOW"};
+        if (cls.equals("CustomHandConfig") && n.equals("mode"))
+            return new String[]{"SPIN", "HORIZONTAL", "LOW", "SIDE", "STAB", "SWING"};
+        return null;
+    }
     private static void saveAndReload() {
         VibeVisualsConfigManager.get().validate();
         VibeVisualsConfigManager.save();
         HudManager.reload();
     }
 
-    private static Text settingNameText(String name) {
-        return Text.translatableWithFallback("screen.vibevisuals.setting_name." + name, humanize(name));
-    }
-
     private static String humanize(String name) {
-        StringBuilder builder = new StringBuilder();
+        StringBuilder b = new StringBuilder();
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
-            if (i > 0 && Character.isUpperCase(c)) {
-                builder.append(' ');
-            }
-            builder.append(i == 0 ? Character.toUpperCase(c) : c);
+            if (i > 0 && Character.isUpperCase(c)) b.append(' ');
+            b.append(i == 0 ? Character.toUpperCase(c) : c);
         }
-        return builder.toString();
+        return b.toString();
     }
 
-    private boolean tryPickColor(SettingEntry entry, double mouseX, double mouseY) {
-        if (settingsTarget == null || entry == null || !isColorField(entry.field)) {
-            return false;
-        }
-        if (pickerWidth <= 0 || pickerHeight <= 0 || mouseX < pickerX || mouseX > pickerX + pickerWidth
-                || mouseY < pickerY || mouseY > pickerY + pickerHeight) {
-            return false;
-        }
-        int previous = readColor(settingsTarget.config, entry.field);
-        int rgb;
-        if (mouseY <= pickerY + 18) {
-            float hue = (float) ((mouseX - pickerX) / Math.max(1.0, pickerWidth - 1.0));
-            rgb = hsvToRgb(clamp01(hue), 0.92f, 1.0f);
-        } else if (mouseY >= pickerY + 22) {
-            float value = (float) ((mouseX - pickerX) / Math.max(1.0, pickerWidth - 1.0));
-            rgb = mixColor(0x000000, previous & 0x00FFFFFF, clamp01(value));
-        } else {
-            return false;
-        }
-        int argb = (previous & 0xFF000000) | rgb;
-        if ((argb & 0xFF000000) == 0) {
-            argb |= 0xFF000000;
-        }
+    private static boolean insideRect(double x, double y, int rx, int ry, int rw, int rh, int pad) {
+        return x >= rx - pad && x <= rx + rw + pad && y >= ry - pad && y <= ry + rh + pad;
+    }
+
+    // ---------- Glass + blur ----------
+
+    private void renderDim(DrawContext context, float eased) {
+        boolean light = MenuTheme.current == MenuTheme.ThemeMode.LIGHT;
+        boolean blur = VibeVisualsConfigManager.get().menu.liquidGlassBlur;
+        // Light theme keeps the world very visible; dark theme is dim but not pitch.
+        int baseAlpha = blur ? (light ? 0x0E : 0x54) : (light ? 0x30 : 0x88);
+        int alpha = (int) (baseAlpha * eased) & 0xFF;
+        int rgb = MenuTheme.DIM_RGB & 0x00FFFFFF;
+        context.fill(0, 0, width, height, (alpha << 24) | rgb);
+    }
+
+    private void applyMenuBlur(DrawContext context) {
+        MinecraftClient mc = MinecraftClient.getInstance();
         try {
-            entry.field.setInt(settingsTarget.config, argb);
-            saveAndReload();
-            return true;
-        } catch (IllegalAccessException exception) {
-            return false;
+            if (mc != null && mc.gameRenderer != null) {
+                mc.gameRenderer.renderBlur();
+                return;
+            }
+        } catch (Throwable ignored) {}
+        try { this.applyBlur(context); } catch (Throwable ignored) {}
+    }
+
+    /** Reusable HudVisualSettings for the SDF-shader card render path. */
+    private static final ru.suppelemen.vibevisuals.theme.HudVisualSettings SDF_CARD_SETTINGS =
+            new ru.suppelemen.vibevisuals.theme.HudVisualSettings();
+    static { SDF_CARD_SETTINGS.renderType = ru.suppelemen.vibevisuals.theme.HudCardRenderType.LIQUID_GLASS; }
+
+    /** Smooth shader-AA rounded card — exact same code path the HUD uses, so
+     *  corners are pixel-perfect at any size (not the 9-slice texture which
+     *  shows tiny stretching artefacts at extreme radii). */
+    private static void drawSdfCard(DrawContext ctx, int x, int y, int w, int h,
+                                     int radius, float opacity) {
+        if (w <= 0 || h <= 0 || opacity <= 0f) return;
+        SDF_CARD_SETTINGS.radius = radius;
+        SDF_CARD_SETTINGS.opacity = opacity;
+        HudCardRenderer.drawCard(ctx, x, y, w, h, SDF_CARD_SETTINGS);
+    }
+
+    /**
+     * Per-row rounded rectangle fill — bypasses the 9-slice card texture used
+     * by {@link HudCardRenderer#drawOverlayCard} so the corner geometry stays
+     * mathematically symmetric even when {@code radius ≈ width/2} (which the
+     * texture path can render slightly off-centre due to corner-patch
+     * stretching). Used for elements where horizontal centering must be exact
+     * — the app-rail and its buttons.
+     */
+    private static void fillRoundedSymmetric(DrawContext ctx, int x, int y, int w, int h,
+                                              int radius, int rgb, float opacity) {
+        if (w <= 0 || h <= 0 || opacity <= 0f) return;
+        int alpha = Math.max(0, Math.min(255, Math.round(opacity * 255f)));
+        int color = (alpha << 24) | (rgb & 0x00FFFFFF);
+        radius = Math.max(0, Math.min(radius, Math.min(w, h) / 2));
+        if (radius <= 0) {
+            ctx.fill(x, y, x + w, y + h, color);
+            return;
+        }
+        for (int row = 0; row < h; row++) {
+            int inset;
+            if (row < radius) {
+                inset = symmCornerInset(row, radius);
+            } else if (row >= h - radius) {
+                inset = symmCornerInset(h - row - 1, radius);
+            } else {
+                inset = 0;
+            }
+            ctx.fill(x + inset, y + row, x + w - inset, y + row + 1, color);
         }
     }
 
-    private static float clamp01(float value) {
-        return Math.max(0.0f, Math.min(1.0f, value));
+    private static int symmCornerInset(int row, int radius) {
+        double dy = radius - row - 0.5;
+        double dx = radius - Math.sqrt(Math.max(0.0, radius * radius - dy * dy));
+        return Math.max(0, (int) Math.ceil(dx));
     }
 
-    private static int hsvToRgb(float hue, float saturation, float value) {
-        float h = (hue - (float) Math.floor(hue)) * 6.0f;
-        int sector = (int) Math.floor(h);
-        float f = h - sector;
-        float p = value * (1.0f - saturation);
-        float q = value * (1.0f - f * saturation);
-        float t = value * (1.0f - (1.0f - f) * saturation);
-        float r;
-        float g;
-        float b;
-        switch (sector % 6) {
-            case 0 -> { r = value; g = t; b = p; }
-            case 1 -> { r = q; g = value; b = p; }
-            case 2 -> { r = p; g = value; b = t; }
-            case 3 -> { r = p; g = q; b = value; }
-            case 4 -> { r = t; g = p; b = value; }
-            default -> { r = value; g = p; b = q; }
+    private void drawLiquidGlass(DrawContext ctx, int x, int y, int w, int h,
+                                  int radius, int material, float materialOpacity, float eased) {
+        if (w <= 0 || h <= 0) return;
+        HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, radius, material, materialOpacity * eased);
+        HudCardRenderer.drawShaderOutline(ctx, x, y, w, h, radius, 0.55f,
+                MenuTheme.GLASS_OUTLINE_ALPHA * eased);
+    }
+
+
+    // ---------- Scale + text helpers ----------
+
+    private float dpScale() {
+        MinecraftClient mc = client != null ? client : MinecraftClient.getInstance();
+        if (mc == null) return 1.0f;
+        float fbW = mc.getWindow().getWidth();
+        float fbH = mc.getWindow().getHeight();
+        float layoutScale = Math.min(fbW / REFERENCE_WIDTH, fbH / REFERENCE_HEIGHT);
+        double guiScale = mc.getWindow().getScaleFactor();
+        if (guiScale <= 0.0) guiScale = 1.0;
+        return Math.max((float) (layoutScale / guiScale), 0.45f);
+    }
+
+    private int dp(float v) { return Math.round(v * dpScale()); }
+    private int panelW() { return Math.min(dp(PANEL_W), width - dp(40)); }
+    private int panelH() { return Math.min(dp(PANEL_H), height - dp(40)); }
+
+    /** Global text-only shrink — does NOT affect rows/icons/panel sizing. */
+    private static final float TEXT_ONLY_SCALE = 0.88f;
+
+    /** Resolve a design-px text size into actual atlas px after dp scaling.
+     *  Floored at 4 so section captions can render visibly smaller than body
+     *  labels (body lives at ~6-8 px, captions at 4-5 px). */
+    private int targetGlyphSize(float pxSize) {
+        int scaled = Math.round(pxSize * dpScale() * TEXT_ONLY_SCALE);
+        return Math.max(4, scaled);
+    }
+
+    private int textWidth(String text, float pxSize) {
+        return SmoothText.measureText(text, targetGlyphSize(pxSize));
+    }
+    private int textHeight(float pxSize) {
+        // ~0.72 of em to mirror what the matrix-scaled vanilla path returned —
+        // keeps existing (rowH - textHeight)/2 vertical-centring math intact.
+        return Math.round(targetGlyphSize(pxSize) * 0.72f);
+    }
+
+    private void drawScaledText(DrawContext ctx, String text, int x, int y, float pxSize, int color) {
+        // SmoothText draws a full glyph CELL whose visible cap sits ~PAD*scale
+        // below the cell's top, so the caller-supplied y (which assumes "y =
+        // top of cap") would render the text slightly lower than icons.
+        // Lift it by the padding-equivalent so cap-center aligns with row centre.
+        // SemiBold-by-default for the whole menu — gives a denser, more premium
+        // type feel. Caller can still pick the regular atlas explicitly via
+        // SmoothText.drawText(... false).
+        int g = targetGlyphSize(pxSize);
+        int nudgeUp = Math.round(g * 0.27f);
+        SmoothText.drawTextBold(ctx, text, x, y - nudgeUp, g, color);
+    }
+
+    /** Tracked variant — inserts {@code trackingEm × pxSize} between glyphs. */
+    private void drawScaledTextTracked(DrawContext ctx, String text, int x, int y,
+                                        float pxSize, int color, float trackingEm) {
+        int g = targetGlyphSize(pxSize);
+        int nudgeUp = Math.round(g * 0.27f);
+        // Tracked text typically goes on section headers ("MODULES", "SYSTEM");
+        // SemiBold the only weight currently exposed by drawTextTracked path
+        // is regular — keep section captions on regular so they read as a
+        // calmer caption layer next to the SemiBold body.
+        SmoothText.drawTextTracked(ctx, text, x, y - nudgeUp, g, color, trackingEm);
+    }
+
+    /** Pick the localised description for the current MC language.
+     *  Rule: ru-locale → Russian (English fallback if Russian missing);
+     *        every other locale → English (Russian fallback if English missing). */
+    private static String localizedDescription(FeatureEntry f) {
+        boolean ru = false;
+        var mc = MinecraftClient.getInstance();
+        if (mc != null && mc.options != null) {
+            String lang = mc.options.language;
+            ru = lang != null && lang.toLowerCase().startsWith("ru");
         }
-        return ((int) (r * 255.0f) << 16) | ((int) (g * 255.0f) << 8) | (int) (b * 255.0f);
-    }
-
-    private static int mixColor(int from, int to, float amount) {
-        int red = (int) (((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * amount);
-        int green = (int) (((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * amount);
-        int blue = (int) ((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * amount);
-        return (red << 16) | (green << 8) | blue;
-    }
-
-    private static float easeOutCubic(float t) {
-        float p = 1.0f - t;
-        return 1.0f - p * p * p;
-    }
-
-    private void playHoverSound() {
-        MinecraftClient minecraft = MinecraftClient.getInstance();
-        minecraft.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK.value(), 1.15f, 0.045f));
-    }
-
-    private void playToggleSound() {
-        MinecraftClient minecraft = MinecraftClient.getInstance();
-        minecraft.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK.value(), 1.25f, 0.16f));
-    }
-
-    // ---------- Vector glyphs ----------
-
-    private void drawPulseLogo(DrawContext context, int x, int y, int color, float eased) {
-        int alpha = MenuTheme.withAlpha(color, eased);
-        // simple ECG-like glyph
-        context.fill(x, y + 4, x + 2, y + 5, alpha);
-        context.fill(x + 2, y + 4, x + 4, y + 5, alpha);
-        context.fill(x + 4, y + 2, x + 5, y + 6, alpha);
-        context.fill(x + 5, y, x + 6, y + 8, alpha);
-        context.fill(x + 6, y + 3, x + 7, y + 5, alpha);
-        context.fill(x + 7, y + 4, x + 11, y + 5, alpha);
-    }
-
-    private void drawSearchGlyph(DrawContext context, int x, int y, int color) {
-        // 6x6 circle + 2x2 handle
-        context.fill(x + 1, y, x + 5, y + 1, color);
-        context.fill(x, y + 1, x + 1, y + 5, color);
-        context.fill(x + 5, y + 1, x + 6, y + 5, color);
-        context.fill(x + 1, y + 5, x + 5, y + 6, color);
-        context.fill(x + 5, y + 5, x + 7, y + 7, color);
-    }
-
-    private void drawKeyboardGlyph(DrawContext context, int x, int y, int color) {
-        context.fill(x, y, x + 10, y + 6, color & 0x44FFFFFF | (color & 0xFF000000));
-        for (int row = 0; row < 2; row++) {
-            int ky = y + 1 + row * 2;
-            for (int col = 0; col < 4; col++) {
-                int kx = x + 1 + col * 2;
-                context.fill(kx, ky, kx + 1, ky + 1, color);
-            }
+        if (ru) {
+            return (f.descriptionRu != null && !f.descriptionRu.isEmpty()) ? f.descriptionRu : f.descriptionEn;
         }
+        return (f.descriptionEn != null && !f.descriptionEn.isEmpty()) ? f.descriptionEn : f.descriptionRu;
     }
 
-    private void drawFolderGlyph(DrawContext context, int x, int y, int color) {
-        context.fill(x, y + 1, x + 4, y + 2, color);
-        context.fill(x, y + 2, x + 10, y + 7, color & 0x88FFFFFF | (color & 0xFF000000));
-        context.fill(x + 1, y + 3, x + 9, y + 6, color);
-    }
+    private static float easeOutCubic(float t) { float p = 1.0f - t; return 1.0f - p * p * p; }
 
-    private void drawCategoryIcon(DrawContext context, int cx, int cy, Category category, int color, float eased) {
-        int c = MenuTheme.withAlpha(color, eased);
-        switch (category) {
-            case VISUALS -> {
-                context.fill(cx - 4, cy - 1, cx + 4, cy + 1, c);
-                context.fill(cx - 1, cy - 4, cx + 1, cy + 4, c);
-            }
-            case HUD -> {
-                context.fill(cx - 4, cy - 3, cx + 4, cy - 2, c);
-                context.fill(cx - 4, cy + 2, cx + 4, cy + 3, c);
-                context.fill(cx - 4, cy - 2, cx - 3, cy + 2, c);
-                context.fill(cx + 3, cy - 2, cx + 4, cy + 2, c);
-            }
-            case UTILITIES -> {
-                context.fill(cx - 3, cy - 3, cx - 1, cy - 1, c);
-                context.fill(cx + 1, cy + 1, cx + 3, cy + 3, c);
-                context.fill(cx - 1, cy - 1, cx + 1, cy + 1, c);
-            }
-            case PVP -> {
-                context.fill(cx - 1, cy - 4, cx + 1, cy + 4, c);
-                context.fill(cx - 4, cy - 1, cx + 4, cy + 1, c);
-            }
-            case EVENTS -> {
-                // map pin: diamond head + stem
-                context.fill(cx - 1, cy - 4, cx + 1, cy - 3, c);
-                context.fill(cx - 3, cy - 3, cx + 3, cy - 1, c);
-                context.fill(cx - 1, cy - 1, cx + 1, cy + 4, c);
-            }
-            case MENU -> {
-                context.fill(cx - 4, cy - 3, cx + 4, cy - 2, c);
-                context.fill(cx - 4, cy - 1, cx + 4, cy, c);
-                context.fill(cx - 4, cy + 1, cx + 4, cy + 2, c);
-            }
-            case WORLD -> {
-                context.fill(cx - 3, cy - 3, cx + 3, cy + 3, c);
-            }
-        }
-    }
+    // ---------- Types ----------
 
-    // ---------- Inner types ----------
-
-    private enum Category {
-        VISUALS("Visuals"),
-        HUD("HUD"),
-        UTILITIES("Utilities"),
-        PVP("PvP"),
-        EVENTS("Events"),
-        MENU("Menu"),
-        WORLD("World");
+    private enum Section {
+        MODULES("MODULES"),
+        SYSTEM("SYSTEM");
 
         final String label;
-
-        Category(String label) {
-            this.label = label;
-        }
+        Section(String label) { this.label = label; }
     }
 
-    private enum Side {
-        LEFT,
-        RIGHT
+    private enum Category {
+        VISUALS  ("Visuals",   Section.MODULES),
+        HUD      ("HUD",       Section.MODULES),
+        UTILITIES("Utilities", Section.MODULES),
+        PVP      ("PvP",       Section.MODULES),
+        MENU     ("Menu",      Section.SYSTEM);
+
+        final String label;
+        final Section section;
+        Category(String label, Section section) { this.label = label; this.section = section; }
     }
 
     private static class FeatureEntry {
         final Category category;
+        /** Module name — always English (acts as the identifier in the UI). */
         final String name;
+        final String descriptionEn;
+        final String descriptionRu;
+        final ModuleIcon icon;
         final Supplier<Boolean> enabled;
         final Consumer<Boolean> enabledSetter;
         final Object config;
+        /** Optional alternate behaviour — when set, clicking the row triggers
+         *  this instead of toggling/opening details. Used for entries that act
+         *  as buttons (e.g. "Profiles…"). */
+        final Runnable customAction;
         float hoverProgress;
-        float knobProgress;
-        boolean hoveredLastFrame;
-        int x;
-        int y;
-        int width;
-        int height;
-        int toggleX;
-        int toggleY;
-        int toggleWidth;
-        int toggleHeight;
+        float knobAnim;
+        float detailKnobAnim;
+        int x, y, width, height;
+        int switchX, switchY, switchWidth, switchHeight;
+        int detailSwitchX, detailSwitchY, detailSwitchW, detailSwitchH;
 
-        FeatureEntry(Category category, String name, Supplier<Boolean> enabled, Consumer<Boolean> enabledSetter, Object config) {
+        FeatureEntry(Category category, String name, String descriptionEn, String descriptionRu,
+                     ModuleIcon icon,
+                     Supplier<Boolean> enabled, Consumer<Boolean> enabledSetter, Object config) {
+            this(category, name, descriptionEn, descriptionRu, icon, enabled, enabledSetter, config, null);
+        }
+
+        FeatureEntry(Category category, String name, String descriptionEn, String descriptionRu,
+                     ModuleIcon icon,
+                     Supplier<Boolean> enabled, Consumer<Boolean> enabledSetter, Object config,
+                     Runnable customAction) {
             this.category = category;
             this.name = name;
+            this.descriptionEn = descriptionEn;
+            this.descriptionRu = descriptionRu;
+            this.icon = icon;
             this.enabled = enabled;
             this.enabledSetter = enabledSetter;
             this.config = config;
+            this.customAction = customAction;
         }
     }
 
-    private static class SettingEntry {
-        final Field field;
-        final TextFieldWidget input;
-        float knobProgress;
-        int x;
-        int y;
-        int width;
-        int height;
+    /** Per-module glyphs. Reused for similar modules (e.g. POTION for both
+     *  Potions and AutoPotion) — keeps the visual vocabulary tight. */
+    private enum ModuleIcon {
+        POTION, CLOCK, KEY, BAR, GRID, SHIELD, HOTBAR, HEART,
+        SWORD, CROWN, TARGET, DROP, SPARK, ARROW_UP, CLOUD, FOG,
+        FLAME, CROSSHAIR, HAND, ACCESSIBILITY, CURVE, WAVE, PIN, APPLE, REFRESH,
+        LINK, SUN, BLUR, THEME
+    }
 
-        SettingEntry(Field field, TextFieldWidget input) {
-            this.field = field;
-            this.input = input;
+    private static class SettingRow {
+        final Field field;
+        float knobAnim;
+        int x, y, width, height;
+        int switchX, switchY, switchW, switchH;
+        // Slider geometry (for int/float).
+        int sliderX, sliderY, sliderW, sliderH;
+        SliderHint hint;
+        // Color swatch.
+        int swatchX, swatchY, swatchSize;
+
+        SettingRow(Field field) { this.field = field; }
+    }
+
+    /** Range/step descriptor inferred for a slider-editable field. */
+    private static final class SliderHint {
+        final float min, max, step;
+        final boolean integer;
+        SliderHint(float min, float max, float step, boolean integer) {
+            this.min = min; this.max = max; this.step = step; this.integer = integer;
         }
+    }
+
+    /** Heuristic bounds based on field name + type. Generous defaults — most
+     *  config values pin to common semantic ranges (opacity ∈ [0,1], etc). */
+    private static SliderHint hintFor(Field f, float currentValue) {
+        String n = f.getName().toLowerCase(Locale.ROOT);
+        boolean isInt = (f.getType() == int.class);
+        if (n.contains("opacity") || n.contains("alpha") || n.contains("strength"))
+            return new SliderHint(0f, 1f, 0.01f, false);
+        if (n.contains("scale") || (n.endsWith("size") && !isInt))
+            return new SliderHint(0.25f, 3f, 0.05f, false);
+        if (n.contains("radius"))
+            return new SliderHint(0f, 30f, isInt ? 1f : 0.5f, isInt);
+        if (n.contains("waveheight"))
+            return new SliderHint(0f, 8f, 0.1f, false);
+        if (n.contains("referencedamage"))
+            return new SliderHint(1f, 60f, 1f, false);
+        if (n.contains("fall") || n.contains("distance"))
+            return new SliderHint(0f, 10f, 0.5f, false);
+        if (n.contains("thickness"))
+            return new SliderHint(0f, 2f, 0.02f, false);
+        // Position offsets — bidirectional, 0 centred. Covers x/y/z, spinX/Y/Z,
+        // and any *Offset field so the user can nudge either way.
+        if (n.equals("x") || n.equals("y") || n.equals("z")
+                || n.startsWith("spin") || n.endsWith("offset")) {
+            return isInt
+                    ? new SliderHint(-64f, 64f, 1f, true)
+                    : new SliderHint(-2f, 2f, 0.01f, false);
+        }
+        // Angles — full bidirectional sweep.
+        if (n.equals("pitch") || n.equals("yaw") || n.equals("roll")
+                || n.contains("angle") || n.contains("rotation") || n.contains("degrees"))
+            return new SliderHint(-180f, 180f, 1f, false);
+        if (n.contains("padding") || n.contains("gap") || n.contains("inset")
+                || n.contains("margin") || n.contains("border"))
+            return new SliderHint(0f, 40f, 1f, true);
+        if (n.contains("duration") || n.contains("delay") || n.contains("ms"))
+            return new SliderHint(0f, 5000f, 50f, true);
+        if (n.contains("speed") || n.contains("ratio"))
+            return new SliderHint(0f, 2f, 0.05f, false);
+        if (isInt) {
+            // Generic int: range around current value, ±64.
+            float c = Math.round(currentValue);
+            return new SliderHint(c - 64f, c + 64f, 1f, true);
+        }
+        // Generic float — allow negatives, 0 centred.
+        return new SliderHint(-1f, 1f, 0.01f, false);
+    }
+
+    private static boolean isColorField(Field f) {
+        if (f.getType() != int.class) return false;
+        String n = f.getName().toLowerCase(Locale.ROOT);
+        return n.endsWith("color") || n.contains("color") || n.endsWith("colour");
     }
 }

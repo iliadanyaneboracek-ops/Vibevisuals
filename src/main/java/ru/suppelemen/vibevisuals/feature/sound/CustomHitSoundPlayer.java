@@ -29,6 +29,20 @@ public final class CustomHitSoundPlayer {
         return FabricLoader.getInstance().getConfigDir().resolve("vibevisuals").resolve("sounds");
     }
 
+    /** Play any sound file (relative to the vibevisuals sounds dir) once. */
+    public static void playSoundFile(String fileName, float volume) {
+        if (fileName == null || fileName.isBlank()) {
+            return;
+        }
+        Path sound = soundsDir().resolve(fileName).normalize();
+        if (!sound.startsWith(soundsDir()) || !Files.isRegularFile(sound)) {
+            return;
+        }
+        Thread thread = new Thread(() -> play(sound, volume), "VibeVisuals Sound");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
     public static void playCrit() {
         VibeVisualsConfig.CustomHitSoundConfig config = VibeVisualsConfigManager.get().customHitSound;
         if (!config.enabled) {

@@ -9,7 +9,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.pvp.PvpCombatTracker;
 import ru.suppelemen.vibevisuals.feature.pvp.TotemCounter;
 import ru.suppelemen.vibevisuals.feature.utility.AutoLeaveController;
@@ -33,9 +32,7 @@ public class ClientPlayNetworkHandlerMixin {
     @Inject(method = "onGameMessage", at = @At("HEAD"))
     private void vibevisuals$autoLeaveOnGameMessage(GameMessageS2CPacket packet, CallbackInfo ci) {
         if (packet.content() != null) {
-            String content = packet.content().getString();
-            AutoLeaveController.onGameMessage(content);
-            MarkerManager.onChatMessage(content);
+            AutoLeaveController.onGameMessage(packet.content().getString());
         }
     }
 }

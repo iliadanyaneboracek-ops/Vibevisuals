@@ -10,8 +10,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class VibeVisualsConfig {
-    private static final int CURRENT_CONFIG_VERSION = 2;
+    private static final int CURRENT_CONFIG_VERSION = 7;
     private static final int LEGACY_DEFAULT_MAX_EFFECTS = 3;
+    private static final int LEGACY_DEFAULT_TITLE_ICON_SIZE = 10;
+    private static final int PREVIOUS_DEFAULT_TITLE_ICON_SIZE = 14;
+    private static final int LEGACY_DEFAULT_TITLE_ICON_Y_OFFSET = -2;
+    private static final int LEGACY_DEFAULT_HOTKEYS_ICON_SIZE = 7;
+    private static final int PREVIOUS_DEFAULT_HOTKEYS_ICON_SIZE = 14;
+    private static final int LEGACY_DEFAULT_HOTKEYS_ICON_Y_OFFSET = -2;
 
     public int configVersion = CURRENT_CONFIG_VERSION;
     public boolean hudEnabled = true;
@@ -25,7 +31,6 @@ public class VibeVisualsConfig {
     public TopBarConfig topBar = TopBarConfig.defaults();
     public HotKeysConfig hotKeysCard = HotKeysConfig.defaults();
     public PvpCardConfig pvpCard = PvpCardConfig.defaults();
-    public PvpQuitGuardConfig pvpQuitGuard = PvpQuitGuardConfig.defaults();
     public ArmorHudConfig armorHud = ArmorHudConfig.defaults();
     public InventoryHudConfig inventoryHud = InventoryHudConfig.defaults();
     public HotbarConfig hotbar = HotbarConfig.defaults();
@@ -36,22 +41,30 @@ public class VibeVisualsConfig {
     public CustomHandConfig customHand = CustomHandConfig.defaults();
     public CustomCrosshairConfig customCrosshair = CustomCrosshairConfig.defaults();
     public MarkersConfig markers = MarkersConfig.defaults();
-    public DeathMarkerConfig deathMarker = DeathMarkerConfig.defaults();
-    public ChatEventConfig chatEvents = ChatEventConfig.defaults();
     public CustomHitSoundConfig customHitSound = CustomHitSoundConfig.defaults();
     public ShiftUpConfig shiftUp = ShiftUpConfig.defaults();
     public VisualEffectsConfig visualEffects = VisualEffectsConfig.defaults();
+    public MaceShockwaveConfig maceShockwave = MaceShockwaveConfig.defaults();
+    public DamageIndicatorsConfig damageIndicators = DamageIndicatorsConfig.defaults();
+    public KillEffectConfig killEffect = KillEffectConfig.defaults();
+    public CodexWheelchairConfig codexWheelchair = CodexWheelchairConfig.defaults();
+    public ChinaHatConfig chinaHat = ChinaHatConfig.defaults();
+    public TrapHighlightConfig trapHighlight = TrapHighlightConfig.defaults();
+    public PvpQuitGuardConfig pvpQuitGuard = PvpQuitGuardConfig.defaults();
+    public TotemCounterConfig totemCounter = TotemCounterConfig.defaults();
+    public StreamerModeConfig streamerMode = StreamerModeConfig.defaults();
+    public AutoLeaveConfig autoLeave = AutoLeaveConfig.defaults();
+    public ZoomConfig zoom = ZoomConfig.defaults();
+    public SoundControllerConfig soundController = SoundControllerConfig.defaults();
     public AutoEatConfig autoEat = AutoEatConfig.defaults();
     public AutoPotionConfig autoPotion = AutoPotionConfig.defaults();
     public AutoRespawnConfig autoRespawn = AutoRespawnConfig.defaults();
     public TapeMouseConfig tapeMouse = TapeMouseConfig.defaults();
     public HealingHelperConfig healingHelper = HealingHelperConfig.defaults();
     public SlotTimersConfig slotTimers = SlotTimersConfig.defaults();
-    public TotemCounterConfig totemCounter = TotemCounterConfig.defaults();
-    public StreamerModeConfig streamerMode = StreamerModeConfig.defaults();
-    public AutoLeaveConfig autoLeave = AutoLeaveConfig.defaults();
-    public ZoomConfig zoom = ZoomConfig.defaults();
-    public SoundControllerConfig soundController = SoundControllerConfig.defaults();
+    public MoggedConfig mogged = MoggedConfig.defaults();
+    public ItemPickupLoggerConfig itemPickupLogger = ItemPickupLoggerConfig.defaults();
+    public LockSlotConfig lockSlot = LockSlotConfig.defaults();
     public MultiKeyBindingsConfig multiKeyBindings = MultiKeyBindingsConfig.defaults();
 
     public void validate() {
@@ -73,10 +86,6 @@ public class VibeVisualsConfig {
 
         if (pvpCard == null) {
             pvpCard = PvpCardConfig.defaults();
-        }
-
-        if (pvpQuitGuard == null) {
-            pvpQuitGuard = PvpQuitGuardConfig.defaults();
         }
 
         if (armorHud == null) {
@@ -114,12 +123,6 @@ public class VibeVisualsConfig {
         if (markers == null) {
             markers = MarkersConfig.defaults();
         }
-        if (deathMarker == null) {
-            deathMarker = DeathMarkerConfig.defaults();
-        }
-        if (chatEvents == null) {
-            chatEvents = ChatEventConfig.defaults();
-        }
         if (customHitSound == null) {
             customHitSound = CustomHitSoundConfig.defaults();
         }
@@ -133,6 +136,42 @@ public class VibeVisualsConfig {
 
         if (visualEffects == null) {
             visualEffects = VisualEffectsConfig.defaults();
+        }
+        if (maceShockwave == null) {
+            maceShockwave = MaceShockwaveConfig.defaults();
+        }
+        if (damageIndicators == null) {
+            damageIndicators = DamageIndicatorsConfig.defaults();
+        }
+        if (killEffect == null) {
+            killEffect = KillEffectConfig.defaults();
+        }
+        if (codexWheelchair == null) {
+            codexWheelchair = CodexWheelchairConfig.defaults();
+        }
+        if (chinaHat == null) {
+            chinaHat = ChinaHatConfig.defaults();
+        }
+        if (trapHighlight == null) {
+            trapHighlight = TrapHighlightConfig.defaults();
+        }
+        if (pvpQuitGuard == null) {
+            pvpQuitGuard = PvpQuitGuardConfig.defaults();
+        }
+        if (totemCounter == null) {
+            totemCounter = TotemCounterConfig.defaults();
+        }
+        if (streamerMode == null) {
+            streamerMode = StreamerModeConfig.defaults();
+        }
+        if (autoLeave == null) {
+            autoLeave = AutoLeaveConfig.defaults();
+        }
+        if (zoom == null) {
+            zoom = ZoomConfig.defaults();
+        }
+        if (soundController == null) {
+            soundController = SoundControllerConfig.defaults();
         }
 
         if (autoEat == null) {
@@ -159,24 +198,16 @@ public class VibeVisualsConfig {
             slotTimers = SlotTimersConfig.defaults();
         }
 
-        if (totemCounter == null) {
-            totemCounter = TotemCounterConfig.defaults();
+        if (mogged == null) {
+            mogged = MoggedConfig.defaults();
         }
 
-        if (streamerMode == null) {
-            streamerMode = StreamerModeConfig.defaults();
+        if (itemPickupLogger == null) {
+            itemPickupLogger = ItemPickupLoggerConfig.defaults();
         }
 
-        if (autoLeave == null) {
-            autoLeave = AutoLeaveConfig.defaults();
-        }
-
-        if (zoom == null) {
-            zoom = ZoomConfig.defaults();
-        }
-
-        if (soundController == null) {
-            soundController = SoundControllerConfig.defaults();
+        if (lockSlot == null) {
+            lockSlot = LockSlotConfig.defaults();
         }
 
         if (menu == null) {
@@ -190,13 +221,27 @@ public class VibeVisualsConfig {
         if (configVersion < CURRENT_CONFIG_VERSION && potionsCard.maxEffects == LEGACY_DEFAULT_MAX_EFFECTS) {
             potionsCard.maxEffects = CardConfig.DEFAULT_MAX_EFFECTS;
         }
+        // (Removed: legacy titleIconSize → 16 migration was hijacking any user
+        //  who chose 10 manually because it can't tell "user kept old default"
+        //  from "user explicitly picked 10". The current default is 10 and
+        //  we trust whatever's in the file.)
+        if (configVersion < CURRENT_CONFIG_VERSION && potionsCard.titleIconYOffset == LEGACY_DEFAULT_TITLE_ICON_Y_OFFSET) {
+            potionsCard.titleIconYOffset = -3;
+        }
+        if (configVersion < CURRENT_CONFIG_VERSION
+                && (hotKeysCard.iconSize == LEGACY_DEFAULT_HOTKEYS_ICON_SIZE
+                || hotKeysCard.iconSize == PREVIOUS_DEFAULT_HOTKEYS_ICON_SIZE)) {
+            hotKeysCard.iconSize = 18;
+        }
+        if (configVersion < CURRENT_CONFIG_VERSION && hotKeysCard.iconYOffset == LEGACY_DEFAULT_HOTKEYS_ICON_Y_OFFSET) {
+            hotKeysCard.iconYOffset = -3;
+        }
 
         potionsCard.validate();
         cooldownsCard.validate();
         topBar.validate();
         hotKeysCard.validate();
         pvpCard.validate();
-        pvpQuitGuard.validate();
         armorHud.validate();
         inventoryHud.validate();
         hotbar.validate();
@@ -207,23 +252,31 @@ public class VibeVisualsConfig {
         customHand.validate();
         customCrosshair.validate();
         markers.validate();
-        deathMarker.validate();
-        chatEvents.validate();
         customHitSound.validate();
         shiftUp.validate();
         hudAnimations.validate();
         visualEffects.validate();
+        maceShockwave.validate();
+        damageIndicators.validate();
+        killEffect.validate();
+        codexWheelchair.validate();
+        chinaHat.validate();
+        trapHighlight.validate();
+        pvpQuitGuard.validate();
+        totemCounter.validate();
+        streamerMode.validate();
+        autoLeave.validate();
+        zoom.validate();
+        soundController.validate();
         autoEat.validate();
         autoPotion.validate();
         autoRespawn.validate();
         tapeMouse.validate();
         healingHelper.validate();
         slotTimers.validate();
-        totemCounter.validate();
-        streamerMode.validate();
-        autoLeave.validate();
-        zoom.validate();
-        soundController.validate();
+        mogged.validate();
+        itemPickupLogger.validate();
+        lockSlot.validate();
         menu.validate();
         multiKeyBindings.validate();
         hudScale = clamp(hudScale, 0.25f, 3.0f);
@@ -265,7 +318,7 @@ public class VibeVisualsConfig {
         public int titleIconSize = 10;
         public int titleIconXOffset = 0;
         public int effectIconYOffset = -1;
-        public int titleIconYOffset = -2;
+        public int titleIconYOffset = -3;
         public int titleTextXOffset = 0;
         public int titleTextYOffset = 0;
         public int timerXOffset = 0;
@@ -389,9 +442,9 @@ public class VibeVisualsConfig {
         public int rowY = 20;
         public int rowGap = 5;
         public int bottomPadding = 4;
-        public int iconSize = 7;
+        public int iconSize = 18;
         public int iconXOffset = 0;
-        public int iconYOffset = -2;
+        public int iconYOffset = -3;
         public int titleTextXOffset = 0;
         public int titleTextYOffset = -1;
         public int keyTextXOffset = 0;
@@ -672,6 +725,11 @@ public class VibeVisualsConfig {
         public float settingTextScale = 0.82f;
         public int colorPickerSize = 76;
 
+        // ClickGUI appearance toggles.
+        public boolean liquidGlassBlur = true; // enables MC backdrop blur behind the menu
+        public String theme = "DARK";          // DARK or LIGHT
+        public String accent = "DEFAULT";      // AccentTheme enum name (DEFAULT, OCEAN_BLUE, …)
+
         public static MenuConfig defaults() {
             return new MenuConfig();
         }
@@ -695,6 +753,11 @@ public class VibeVisualsConfig {
             rowHeight = Math.max(12, Math.min(28, rowHeight));
             settingTextScale = clamp(settingTextScale, 0.50f, 1.0f);
             colorPickerSize = Math.max(48, Math.min(128, colorPickerSize));
+            if (theme == null || (!theme.equalsIgnoreCase("DARK") && !theme.equalsIgnoreCase("LIGHT"))) {
+                theme = "DARK";
+            } else {
+                theme = theme.toUpperCase();
+            }
         }
     }
 
@@ -830,7 +893,8 @@ public class VibeVisualsConfig {
 
     public static class CustomHandConfig {
         public boolean enabled = false;
-        public String mode = "HORIZONTAL";
+        /** Render mode. Built-ins: HORIZONTAL, LOW, SIDE, STAB, SWING, SPIN. */
+        public String mode = "SPIN";
         public float x = 0.0f;
         public float y = 0.0f;
         public float z = 0.0f;
@@ -839,6 +903,21 @@ public class VibeVisualsConfig {
         public float roll = 0.0f;
         public float scale = 1.0f;
         public float swingAmount = 0.45f;
+
+        // SPIN-mode specific position offsets (camera space). Tweak to place
+        // the laid-down blade exactly where you want it on screen.
+        public float spinX = -0.10f;
+        public float spinY = 0.18f;
+        public float spinZ = 0.10f;
+        // Pivot the Z-axis (screen-plane) spin rotates around, in SCREEN space.
+        // Because the spin axis is Z, only X and Y move the centre of rotation;
+        // Z has no effect. Defaults sit roughly at the laid-down blade's middle
+        // so it twirls in place instead of arcing off the bottom of the screen.
+        public float spinPivotX = -0.35f;
+        public float spinPivotY = 0.0f;
+        public float spinPivotZ = 0.0f;
+        // How many full turns per swing (1.0 = one 360° per hit). Higher = faster.
+        public float spinSpeed = 1.0f;
 
         public static CustomHandConfig defaults() {
             return new CustomHandConfig();
@@ -856,6 +935,13 @@ public class VibeVisualsConfig {
             roll = clamp(roll, -180.0f, 180.0f);
             scale = clamp(scale, 0.20f, 3.0f);
             swingAmount = clamp(swingAmount, 0.0f, 2.0f);
+            spinX = clamp(spinX, -2.0f, 2.0f);
+            spinY = clamp(spinY, -2.0f, 2.0f);
+            spinZ = clamp(spinZ, -2.0f, 2.0f);
+            spinPivotX = clamp(spinPivotX, -2.0f, 2.0f);
+            spinPivotY = clamp(spinPivotY, -2.0f, 2.0f);
+            spinPivotZ = clamp(spinPivotZ, -2.0f, 2.0f);
+            spinSpeed = clamp(spinSpeed, 0.1f, 6.0f);
         }
     }
 
@@ -891,15 +977,15 @@ public class VibeVisualsConfig {
 
     public static class MarkersConfig {
         public boolean enabled = true;
-        public int color = 0xFF7C5CFF;
+        public int color = 0xFF7C5CFF;       // colour of the NEXT marker you place
         public int maxMarkers = 32;
-        public float lineWidth = 3.0f;
-        public float radius = 0.35f;
-        public boolean showLabels = true;
+        public boolean showName = true;
         public boolean showDistance = true;
-        public boolean onlyCurrentDimension = true;
-        public float beamHeight = 6.0f;
-        public float labelScale = 1.0f;
+        public boolean throughWalls = true;   // visible through terrain (Xaero-style)
+        public float iconScale = 1.0f;         // on-screen size multiplier
+        public boolean beam = false;           // vertical beacon beam
+        public float beamHeight = 24.0f;
+        public float lineWidth = 3.0f;
 
         public static MarkersConfig defaults() {
             return new MarkersConfig();
@@ -907,42 +993,9 @@ public class VibeVisualsConfig {
 
         public void validate() {
             maxMarkers = Math.max(1, Math.min(128, maxMarkers));
+            iconScale = clamp(iconScale, 0.3f, 4.0f);
+            beamHeight = clamp(beamHeight, 1.0f, 320.0f);
             lineWidth = clamp(lineWidth, 1.0f, 10.0f);
-            radius = clamp(radius, 0.05f, 2.0f);
-            beamHeight = clamp(beamHeight, 0.0f, 64.0f);
-            labelScale = clamp(labelScale, 0.25f, 4.0f);
-        }
-    }
-
-    public static class DeathMarkerConfig {
-        public boolean enabled = true;
-        public int color = 0xFFFF4D4D;
-        public boolean keepOnlyLast = false;
-        public boolean announceInChat = true;
-
-        public static DeathMarkerConfig defaults() {
-            return new DeathMarkerConfig();
-        }
-
-        public void validate() {
-        }
-    }
-
-    public static class ChatEventConfig {
-        public boolean enabled = false;
-        public int color = 0xFFFFD24D;
-        public boolean useChatCoordinates = true;
-        public List<String> keywords = new ArrayList<>(List.of("event", "ивент", "started", "начал", "boss", "босс"));
-
-        public static ChatEventConfig defaults() {
-            return new ChatEventConfig();
-        }
-
-        public void validate() {
-            if (keywords == null) {
-                keywords = new ArrayList<>();
-            }
-            keywords.removeIf(keyword -> keyword == null || keyword.isBlank());
         }
     }
 
@@ -970,17 +1023,6 @@ public class VibeVisualsConfig {
 
         public static ShiftUpConfig defaults() {
             return new ShiftUpConfig();
-        }
-
-        public void validate() {
-        }
-    }
-
-    public static class PvpQuitGuardConfig {
-        public boolean enabled = true;
-
-        public static PvpQuitGuardConfig defaults() {
-            return new PvpQuitGuardConfig();
         }
 
         public void validate() {
@@ -1019,113 +1061,196 @@ public class VibeVisualsConfig {
         }
     }
 
-    public static class AutoEatConfig {
+    public static class MaceShockwaveConfig {
         public boolean enabled = false;
-        public int hungerPercent = 60;
+        // Overall size multiplier for the whole effect (radius + thickness +
+        // height). 1.0 = base values below.
+        public float size = 1.0f;
+        // Outer expanding ring + inner accent ring.
+        public int ringColor = 0xFFFFFFFF;
+        public int coreColor = 0xFF8FE3FF;
+        // How far (in blocks) the wave grows before it fades out.
+        public float maxRadius = 4.5f;
+        // Concentric rings drawn (staggered so they ripple outward).
+        public int rings = 3;
+        // Lifetime of one shockwave (expand + fade), in client render ticks.
+        public int lifeTicks = 16;
+        public float lineWidth = 5.0f;
+        // Real band thickness in blocks (drawn as stacked rings so it stays
+        // thick even when the GPU caps GL line width at 1px).
+        public float thickness = 0.22f;
+        public int segments = 56;
+        // Lift the ring slightly off the ground to avoid z-fighting with blocks.
+        public float heightOffset = 0.06f;
+        // Peak vertical height of the wave wall on impact (blocks, at reference
+        // fall). The wall starts this tall and collapses to the ground.
+        public float waveHeight = 1.8f;
+        // Scale radius / thickness / height by the smash DAMAGE dealt. Harder
+        // hit = bigger, taller, thicker shockwave.
+        public boolean scaleWithDamage = true;
+        // Smash damage that produces the full base values above. Hits weaker
+        // than this shrink the wave; stronger ones grow it.
+        public float referenceDamage = 16.0f;
+        // Only fire on a real mace SMASH: requires this much fall distance.
+        public float minFallDistance = 1.5f;
+        // Spawn a dust burst on impact in the accent colour.
+        public boolean spawnParticles = true;
+        public int particleCount = 28;
 
-        public static AutoEatConfig defaults() {
-            return new AutoEatConfig();
+        public static MaceShockwaveConfig defaults() {
+            return new MaceShockwaveConfig();
         }
 
         public void validate() {
-            hungerPercent = Math.max(5, Math.min(95, hungerPercent));
+            size = clamp(size, 0.25f, 4.0f);
+            maxRadius = clamp(maxRadius, 1.0f, 16.0f);
+            rings = Math.max(1, Math.min(6, rings));
+            lifeTicks = Math.max(4, Math.min(80, lifeTicks));
+            lineWidth = clamp(lineWidth, 1.0f, 12.0f);
+            thickness = clamp(thickness, 0.0f, 2.0f);
+            segments = Math.max(12, Math.min(128, segments));
+            heightOffset = clamp(heightOffset, 0.0f, 2.0f);
+            waveHeight = clamp(waveHeight, 0.0f, 8.0f);
+            referenceDamage = clamp(referenceDamage, 1.0f, 60.0f);
+            minFallDistance = clamp(minFallDistance, 0.0f, 10.0f);
+            particleCount = Math.max(0, Math.min(128, particleCount));
         }
     }
 
-    public static class AutoPotionConfig {
-        public boolean enabled = false;
-        public boolean useSpeed = true;
-        public boolean useInvisibility = true;
-        public int refreshSeconds = 15;
+    public static class DamageIndicatorsConfig {
+        public boolean enabled = true;
+        // Floating number colours.
+        public int color = 0xFFFF5555;       // normal hit
+        public int critColor = 0xFFFFD24D;   // critical hit
+        public int healColor = 0xFF5CE38B;   // healing (target gained HP)
+        public float size = 1.0f;            // overall text scale
+        public float critSizeBonus = 0.4f;   // crits render this much bigger
+        public float lifeSeconds = 1.0f;     // how long a number lives
+        public float riseDistance = 0.7f;    // blocks it floats upward
+        public boolean showDecimals = true;  // 6.5 vs 6
+        public boolean showHealing = true;   // also pop green numbers on heal
+        public boolean onlyPlayers = false;  // ignore mobs when true
+        public boolean seeThrough = true;    // faint copy visible through walls
 
-        public static AutoPotionConfig defaults() {
-            return new AutoPotionConfig();
+        public static DamageIndicatorsConfig defaults() {
+            return new DamageIndicatorsConfig();
         }
 
         public void validate() {
-            refreshSeconds = Math.max(0, Math.min(120, refreshSeconds));
+            size = clamp(size, 0.25f, 4.0f);
+            critSizeBonus = clamp(critSizeBonus, 0.0f, 3.0f);
+            lifeSeconds = clamp(lifeSeconds, 0.2f, 5.0f);
+            riseDistance = clamp(riseDistance, 0.0f, 4.0f);
         }
     }
 
-    public static class AutoRespawnConfig {
-        public boolean enabled = false;
-        public String command = "";
-        public int commandDelayTicks = 20;
+    public static class KillEffectConfig {
+        public boolean enabled = true;
+        // Visual style: RING, BURST (ring + particles), FLASH (quick rings), LIGHTNING.
+        public String style = "BURST";
+        public int color = 0xFFFF4D4D;
+        public int accentColor = 0xFFFFD24D;
+        public float size = 1.0f;          // overall multiplier
+        public float maxRadius = 2.6f;     // ground ring radius (blocks)
+        public int lifeTicks = 14;
+        public int rings = 2;
+        public float lineWidth = 4.0f;
+        public int segments = 48;
+        public float heightOffset = 0.06f;
+        public boolean spawnParticles = true;
+        public int particleCount = 40;
+        // SOUL style only: how high (blocks) the soul rises before fading.
+        public float soulRise = 7.0f;
 
-        public static AutoRespawnConfig defaults() {
-            return new AutoRespawnConfig();
+        public static KillEffectConfig defaults() {
+            return new KillEffectConfig();
         }
 
         public void validate() {
-            if (command == null) {
-                command = "";
+            if (style == null || style.isBlank()) {
+                style = "BURST";
             }
-            commandDelayTicks = Math.max(0, Math.min(200, commandDelayTicks));
+            size = clamp(size, 0.25f, 4.0f);
+            maxRadius = clamp(maxRadius, 0.5f, 12.0f);
+            lifeTicks = Math.max(4, Math.min(80, lifeTicks));
+            rings = Math.max(1, Math.min(6, rings));
+            lineWidth = clamp(lineWidth, 1.0f, 12.0f);
+            segments = Math.max(12, Math.min(128, segments));
+            heightOffset = clamp(heightOffset, 0.0f, 2.0f);
+            particleCount = Math.max(0, Math.min(160, particleCount));
+            soulRise = clamp(soulRise, 1.0f, 24.0f);
         }
     }
 
-    public static class TapeMouseConfig {
+    public static class CodexWheelchairConfig {
         public boolean enabled = false;
-        public int clickDelayTicks = 4;
+        public boolean onlyThirdPerson = true;
+        public float scale = 1.0f;
+        public float yOffset = 0.05f;
 
-        public static TapeMouseConfig defaults() {
-            return new TapeMouseConfig();
+        public static CodexWheelchairConfig defaults() {
+            return new CodexWheelchairConfig();
         }
 
         public void validate() {
-            clickDelayTicks = Math.max(1, Math.min(200, clickDelayTicks));
+            scale = clamp(scale, 0.40f, 2.50f);
+            yOffset = clamp(yOffset, -1.0f, 1.0f);
         }
     }
 
-    public static class SlotTimersConfig {
-        public boolean enabled = true;
-        public int textColor = 0xFFFF4D4D;
-        public int urgentColor = 0xFFFFD24D;
-        public float urgentThresholdSeconds = 1.0f;
-        public boolean showShadow = true;
-        public boolean showSubsecond = true;
-        public float textScale = 0.7f;
-        public int xOffset = 0;
-        public int yOffset = 0;
+    public static class ChinaHatConfig {
+        public boolean enabled = false;
+        public int color = 0xFFFF55FF;        // any colour (ARGB, alpha = opacity)
+        public float radius = 0.62f;          // brim width (blocks)
+        public float height = 0.34f;          // cone height (blocks)
+        public float yOffset = 0.0f;          // nudge up/down on the head
+        public int segments = 36;             // smoothness of the cone
+        public boolean onlyThirdPerson = true; // hide in first person
+        public boolean allPlayers = false;    // also put it on every other player
 
-        public static SlotTimersConfig defaults() {
-            return new SlotTimersConfig();
+        public static ChinaHatConfig defaults() {
+            return new ChinaHatConfig();
         }
 
         public void validate() {
-            textScale = clamp(textScale, 0.25f, 2.0f);
-            urgentThresholdSeconds = clamp(urgentThresholdSeconds, 0.0f, 10.0f);
-            xOffset = Math.max(-16, Math.min(16, xOffset));
-            yOffset = Math.max(-16, Math.min(16, yOffset));
+            radius = clamp(radius, 0.1f, 2.0f);
+            height = clamp(height, 0.02f, 2.0f);
+            yOffset = clamp(yOffset, -1.0f, 1.0f);
+            segments = Math.max(8, Math.min(96, segments));
         }
     }
 
-    public static class HealingHelperConfig {
-        public boolean enabled = true;
-        public int currentColor = 0xFF5CE38B;
-        public int nextColor = 0xFFFFFFFF;
-        public float currentOpacity = 0.70f;
-        public float currentFillOpacity = 0.28f;
-        public float nextOpacity = 0.22f;
-        public float nextFillOpacity = 0.08f;
-        public float outlineThickness = 1.2f;
-        public float pulseSpeed = 1.0f;
-        public float pulseAmplitude = 0.25f;
-        public int padding = 0;
+    public static class TrapHighlightConfig {
+        public boolean enabled = false;
+        // Colour applied to the NEXT selection you make. Already-placed
+        // selections keep the colour they were created with, so changing this
+        // only affects new marks. Use different colours to tell traps / pulls
+        // apart yourself.
+        public int nextColor = 0xFF4DFFA6;
+        // Solid outline thickness in blocks (real 3D beams).
+        public float thickness = 0.06f;
+        // Animate outlines through an RGB rainbow (overrides per-mark colours).
+        public boolean rainbow = false;
+        public float rainbowSpeed = 1.0f;
 
-        public static HealingHelperConfig defaults() {
-            return new HealingHelperConfig();
+        public static TrapHighlightConfig defaults() {
+            return new TrapHighlightConfig();
         }
 
         public void validate() {
-            currentOpacity = clamp(currentOpacity, 0.0f, 1.0f);
-            currentFillOpacity = clamp(currentFillOpacity, 0.0f, 1.0f);
-            nextOpacity = clamp(nextOpacity, 0.0f, 1.0f);
-            nextFillOpacity = clamp(nextFillOpacity, 0.0f, 1.0f);
-            outlineThickness = clamp(outlineThickness, 0.0f, 4.0f);
-            pulseSpeed = clamp(pulseSpeed, 0.0f, 4.0f);
-            pulseAmplitude = clamp(pulseAmplitude, 0.0f, 1.0f);
-            padding = Math.max(-4, Math.min(6, padding));
+            thickness = clamp(thickness, 0.01f, 0.4f);
+            rainbowSpeed = clamp(rainbowSpeed, 0.0f, 5.0f);
+        }
+    }
+
+    public static class PvpQuitGuardConfig {
+        public boolean enabled = true;
+
+        public static PvpQuitGuardConfig defaults() {
+            return new PvpQuitGuardConfig();
+        }
+
+        public void validate() {
         }
     }
 
@@ -1210,6 +1335,210 @@ public class VibeVisualsConfig {
             critVolume = clamp(critVolume, 0.0f, 2.0f);
             attackVolume = clamp(attackVolume, 0.0f, 2.0f);
             experienceVolume = clamp(experienceVolume, 0.0f, 2.0f);
+        }
+    }
+
+    public static class AutoEatConfig {
+        public boolean enabled = false;
+        public int hungerPercent = 60;
+
+        public static AutoEatConfig defaults() {
+            return new AutoEatConfig();
+        }
+
+        public void validate() {
+            hungerPercent = Math.max(5, Math.min(95, hungerPercent));
+        }
+    }
+
+    public static class AutoPotionConfig {
+        public boolean enabled = false;
+        public boolean useSpeed = true;
+        public boolean useInvisibility = true;
+        public int refreshSeconds = 15;
+
+        public static AutoPotionConfig defaults() {
+            return new AutoPotionConfig();
+        }
+
+        public void validate() {
+            refreshSeconds = Math.max(0, Math.min(120, refreshSeconds));
+        }
+    }
+
+    public static class AutoRespawnConfig {
+        public boolean enabled = false;
+        public String command = "";
+        public int commandDelayTicks = 20;
+
+        public static AutoRespawnConfig defaults() {
+            return new AutoRespawnConfig();
+        }
+
+        public void validate() {
+            if (command == null) {
+                command = "";
+            }
+            commandDelayTicks = Math.max(0, Math.min(200, commandDelayTicks));
+        }
+    }
+
+    public static class TapeMouseConfig {
+        public boolean enabled = false;
+        public int clickDelayTicks = 4;
+
+        public static TapeMouseConfig defaults() {
+            return new TapeMouseConfig();
+        }
+
+        public void validate() {
+            clickDelayTicks = Math.max(1, Math.min(200, clickDelayTicks));
+        }
+    }
+
+    public static class MoggedConfig {
+        public boolean enabled = false;          // off by default — it's a joke feature
+        public float displayDurationSeconds = 1.4f;
+        public float bannerScale = 2.0f;         // size multiplier for the world banner
+        public boolean playSound = true;
+        public String soundFile = "mogged.wav";  // dropped into <config>/vibevisuals/sounds/
+        public float volume = 1.0f;
+
+        public static MoggedConfig defaults() {
+            return new MoggedConfig();
+        }
+
+        public void validate() {
+            displayDurationSeconds = clamp(displayDurationSeconds, 0.2f, 6.0f);
+            bannerScale = clamp(bannerScale, 0.4f, 6.0f);
+            volume = clamp(volume, 0.0f, 2.0f);
+            if (soundFile == null || soundFile.isBlank()) {
+                soundFile = "mogged.wav";
+            }
+        }
+    }
+
+    public static class SlotTimersConfig {
+        public boolean enabled = true;
+        public int textColor = 0xFFFF4D4D;
+        public int urgentColor = 0xFFFFD24D;
+        public float urgentThresholdSeconds = 1.0f;
+        public boolean showShadow = true;
+        public boolean showSubsecond = true;
+        public float textScale = 0.7f;
+        public int xOffset = 0;
+        public int yOffset = 0;
+
+        public static SlotTimersConfig defaults() {
+            return new SlotTimersConfig();
+        }
+
+        public void validate() {
+            textScale = clamp(textScale, 0.25f, 2.0f);
+            urgentThresholdSeconds = clamp(urgentThresholdSeconds, 0.0f, 10.0f);
+            xOffset = Math.max(-16, Math.min(16, xOffset));
+            yOffset = Math.max(-16, Math.min(16, yOffset));
+        }
+    }
+
+    public static class HealingHelperConfig {
+        public boolean enabled = true;
+        public int currentColor = 0xFF5CE38B;
+        public int nextColor = 0xFFFFFFFF;
+        public float currentOpacity = 0.70f;
+        public float currentFillOpacity = 0.28f;
+        public float nextOpacity = 0.22f;
+        public float nextFillOpacity = 0.08f;
+        public float outlineThickness = 1.2f;
+        public float pulseSpeed = 1.0f;
+        public float pulseAmplitude = 0.25f;
+        public int padding = 0;
+
+        public static HealingHelperConfig defaults() {
+            return new HealingHelperConfig();
+        }
+
+        public void validate() {
+            currentOpacity = clamp(currentOpacity, 0.0f, 1.0f);
+            currentFillOpacity = clamp(currentFillOpacity, 0.0f, 1.0f);
+            nextOpacity = clamp(nextOpacity, 0.0f, 1.0f);
+            nextFillOpacity = clamp(nextFillOpacity, 0.0f, 1.0f);
+            outlineThickness = clamp(outlineThickness, 0.0f, 4.0f);
+            pulseSpeed = clamp(pulseSpeed, 0.0f, 4.0f);
+            pulseAmplitude = clamp(pulseAmplitude, 0.0f, 1.0f);
+            padding = Math.max(-4, Math.min(6, padding));
+        }
+    }
+
+    public static class ItemPickupLoggerConfig {
+        public boolean enabled = false;
+        public boolean useActionBar = false;
+        public boolean logAllItems = true;
+        public boolean logValuables = true;
+        public boolean logEquipment = true;
+        public boolean logFood = true;
+        public boolean logBlocks = true;
+        public boolean logOther = true;
+        public boolean highlightValuables = true;
+        public boolean playValuableSound = true;
+        public boolean showSessionTotal = true;
+        public int aggregateWindowTicks = 15;
+        public int minCount = 1;
+        public int defaultColor = 0xFFD7DAE8;
+        public int valuableColor = 0xFFFFD866;
+        public int countColor = 0xFF7C5CFF;
+        public int totalColor = 0xFF9DA2B3;
+
+        public static ItemPickupLoggerConfig defaults() {
+            return new ItemPickupLoggerConfig();
+        }
+
+        public void validate() {
+            aggregateWindowTicks = Math.max(0, Math.min(200, aggregateWindowTicks));
+            minCount = Math.max(1, Math.min(64, minCount));
+        }
+    }
+
+    public static class LockSlotConfig {
+        public boolean enabled = false;
+        public boolean blockDrop = true;
+        public boolean blockInventoryClicks = true;
+        public boolean showLockIcon = true;
+        public int lockIconColor = 0xFFFFD24D;
+
+        public boolean slot1 = false;
+        public boolean slot2 = false;
+        public boolean slot3 = false;
+        public boolean slot4 = false;
+        public boolean slot5 = false;
+        public boolean slot6 = false;
+        public boolean slot7 = false;
+        public boolean slot8 = false;
+        public boolean slot9 = false;
+
+        public static LockSlotConfig defaults() {
+            return new LockSlotConfig();
+        }
+
+        public void validate() {
+        }
+
+        public boolean isHotbarSlotLocked(int slotIndex) {
+            if (!enabled) {
+                return false;
+            }
+            return switch (slotIndex) {
+                case 0 -> slot1;
+                case 1 -> slot2;
+                case 2 -> slot3;
+                case 3 -> slot4;
+                case 4 -> slot5;
+                case 5 -> slot6;
+                case 6 -> slot7;
+                case 7 -> slot8;
+                case 8 -> slot9;
+                default -> false;
+            };
         }
     }
 

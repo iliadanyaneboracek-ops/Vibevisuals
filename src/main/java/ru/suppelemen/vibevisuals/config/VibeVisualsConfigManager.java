@@ -8,6 +8,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import ru.suppelemen.vibevisuals.VibeVisualsClient;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Field;
@@ -41,6 +42,26 @@ public final class VibeVisualsConfigManager {
                 config = new VibeVisualsConfig();
                 config.validate();
                 return;
+            }
+        } else {
+            // First-run baseline: load the shipped default-config.json so new
+            // installs get the curated VibeVisuals look out of the box instead
+            // of stock Java-field defaults.
+            try (InputStream in = VibeVisualsConfigManager.class.getResourceAsStream(
+                    "/assets/" + VibeVisualsClient.MOD_ID + "/default-config.json")) {
+                if (in != null) {
+                    try (Reader reader = new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8)) {
+                        JsonObject root = GSON.fromJson(reader, JsonObject.class);
+                        VibeVisualsConfig loaded = new VibeVisualsConfig();
+                        if (root != null) {
+                            applyJsonObject(loaded, root, "config");
+                        }
+                        config = loaded;
+                        System.out.println("[vibevisuals] First run — seeded config from default-config.json");
+                    }
+                }
+            } catch (Exception ex) {
+                System.err.println("[vibevisuals] Could not load shipped default-config.json — using code defaults");
             }
         }
 

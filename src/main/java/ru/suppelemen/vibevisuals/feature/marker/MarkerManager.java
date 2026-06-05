@@ -3,37 +3,32 @@ package ru.suppelemen.vibevisuals.feature.marker;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
-import net.minecraft.text.Text;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
-import org.joml.Vector4f;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+/**
+ * Xaero's-Minimap-style waypoints. Each marker shows a coloured square with its
+ * initial, the name and the distance, billboarded toward the camera, visible
+ * through walls, and kept at a roughly constant on-screen size by scaling with
+ * distance. Optional beacon beam.
+ */
 public final class MarkerManager {
     private static final List<Marker> MARKERS = new ArrayList<>();
-    private static final Pattern COORD_PATTERN = Pattern.compile("(-?\\d{1,7})\\D{1,6}(-?\\d{1,4})\\D{1,6}(-?\\d{1,7})");
     private static int nextId = 1;
-
-    // captured each world-render frame, consumed by the HUD label pass
-    private static Matrix4f projectionMatrix;
-    private static Matrix4f modelViewMatrix;
-    private static Vec3d cameraPos;
 
     private MarkerManager() {
     }
@@ -42,15 +37,10 @@ public final class MarkerManager {
         return Collections.unmodifiableList(MARKERS);
     }
 
-    public static int count() {
-        return MARKERS.size();
-    }
-
-    public static void addManualAtCrosshair(MinecraftClient client) {
+    public static void addAtCrosshair(MinecraftClient client) {
         if (client.player == null) {
             return;
         }
-
         Vec3d pos = client.player.getEyePos();
         HitResult hit = client.crosshairTarget;
         if (hit != null && hit.getType() != HitResult.Type.MISS) {
@@ -60,104 +50,11 @@ public final class MarkerManager {
                 pos = new Vec3d(entity.getX(), entity.getY() + entity.getHeight() * 0.5, entity.getZ());
             }
         }
-
-        add(client, pos, MarkerType.MANUAL, "Marker " + nextId++, VibeVisualsConfigManager.get().markers.color);
-    }
-
-    public static void addManualAtSelf(MinecraftClient client) {
-        if (client.player == null) {
-            return;
-        }
-        add(client, playerPos(client), MarkerType.MANUAL, "Marker " + nextId++, VibeVisualsConfigManager.get().markers.color);
-    }
-
-    public static void addDeath(MinecraftClient client) {
-        if (client.player == null) {
-            return;
-        }
-        VibeVisualsConfig.DeathMarkerConfig config = VibeVisualsConfigManager.get().deathMarker;
-        if (config.keepOnlyLast) {
-            MARKERS.removeIf(marker -> marker.type == MarkerType.DEATH);
-        }
-        add(client, playerPos(client), MarkerType.DEATH, "Death", config.color);
-    }
-
-    public static void onChatMessage(String message) {
-        if (message == null || message.isBlank()) {
-            return;
-        }
-
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.world == null) {
-            return;
-        }
-
-        VibeVisualsConfig.ChatEventConfig config = VibeVisualsConfigManager.get().chatEvents;
-        if (!config.enabled || config.keywords == null || config.keywords.isEmpty()) {
-            return;
-        }
-
-        String lower = message.toLowerCase(Locale.ROOT);
-        boolean matched = false;
-        for (String keyword : config.keywords) {
-            if (keyword != null && !keyword.isBlank() && lower.contains(keyword.toLowerCase(Locale.ROOT))) {
-                matched = true;
-                break;
-            }
-        }
-        if (!matched) {
-            return;
-        }
-
-        Vec3d pos = playerPos(client);
-        if (config.useChatCoordinates) {
-            Vec3d parsed = parseCoordinates(message);
-            if (parsed != null) {
-                pos = parsed;
-            }
-        }
-        add(client, pos, MarkerType.EVENT, eventName(message), config.color);
-    }
-
-    private static String eventName(String message) {
-        // collapse whitespace and trim to a short, readable title taken from the chat line
-        String cleaned = message.replaceAll("\\s+", " ").trim();
-        if (cleaned.isEmpty()) {
-            return "Event";
-        }
-        int limit = 28;
-        if (cleaned.length() > limit) {
-            cleaned = cleaned.substring(0, limit).trim() + "…";
-        }
-        return cleaned;
-    }
-
-    private static Vec3d parseCoordinates(String message) {
-        Matcher matcher = COORD_PATTERN.matcher(message);
-        if (!matcher.find()) {
-            return null;
-        }
-        try {
-            double x = Double.parseDouble(matcher.group(1)) + 0.5;
-            double y = Double.parseDouble(matcher.group(2));
-            double z = Double.parseDouble(matcher.group(3)) + 0.5;
-            return new Vec3d(x, y, z);
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
-    private static Vec3d playerPos(MinecraftClient client) {
-        return new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
-    }
-
-    private static void add(MinecraftClient client, Vec3d pos, MarkerType type, String name, int color) {
         VibeVisualsConfig.MarkersConfig config = VibeVisualsConfigManager.get().markers;
-        String dimension = client.world == null ? "" : client.world.getRegistryKey().getValue().toString();
-        while (MARKERS.size() >= config.maxMarkers && !MARKERS.isEmpty()) {
+        while (MARKERS.size() >= config.maxMarkers) {
             MARKERS.remove(0);
         }
-        MARKERS.add(new Marker(name, pos, type, color, dimension));
+        MARKERS.add(new Marker("Marker " + nextId++, pos, config.color));
     }
 
     public static void removeLast() {
@@ -177,176 +74,91 @@ public final class MarkerManager {
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) {
+        VertexConsumerProvider consumers = context.consumers();
+        if (consumers == null) {
             return;
         }
-        String currentDimension = client.world.getRegistryKey().getValue().toString();
-
-        Camera cameraInstance = client.gameRenderer.getCamera();
-        Vec3d camera = cameraInstance.getCameraPos();
-        double maxDistance = maxRenderDistance(client);
-        double worldBottom = client.world.getBottomY();
-        double worldTop = client.world.getBottomY() + client.world.getHeight();
+        Camera cam = client.gameRenderer.getCamera();
+        Vec3d camPos = cam.getCameraPos();
+        TextRenderer tr = client.textRenderer;
         MatrixStack matrices = context.matrices();
-        MatrixStack.Entry entry = matrices.peek();
-        Matrix4f matrix = entry.getPositionMatrix();
-        VertexConsumer consumer = context.consumers().getBuffer(RenderLayers.linesTranslucent());
+
+        if (config.beam) {
+            VertexConsumer lines = consumers.getBuffer(RenderLayers.linesTranslucent());
+            Matrix4f m = matrices.peek().getPositionMatrix();
+            MatrixStack.Entry entry = matrices.peek();
+            for (Marker marker : MARKERS) {
+                drawBeam(lines, entry, m, camPos, marker, config);
+            }
+        }
 
         for (Marker marker : MARKERS) {
-            if (config.onlyCurrentDimension && !marker.dimension.equals(currentDimension)) {
-                continue;
-            }
-            double realDistance = Math.sqrt(camera.squaredDistanceTo(marker.pos));
-            boolean clamped = realDistance > maxDistance;
-            Vec3d renderPos = clamped ? clampToDistance(camera, marker.pos, maxDistance) : marker.pos;
-            // skip the ground ring/cross when clamped: it would float in mid-air, only the beam keeps pointing
-            drawMarker(consumer, entry, matrix, camera, renderPos, config.radius, marker.color, config.lineWidth, worldBottom, worldTop, !clamped);
-        }
-
-        // capture the modelview + camera so the HUD pass can project labels to screen space (reliable at any distance);
-        // the projection matrix is supplied separately by GameRendererMixin
-        if (config.showLabels) {
-            modelViewMatrix = new Matrix4f(matrix);
-            cameraPos = camera;
+            drawLabel(tr, matrices, consumers, cam, camPos, marker, config);
         }
     }
 
-    public static void setProjectionMatrix(Matrix4f matrix) {
-        projectionMatrix = new Matrix4f(matrix);
-    }
+    private static void drawLabel(TextRenderer tr, MatrixStack matrices, VertexConsumerProvider consumers,
+                                  Camera cam, Vec3d camPos, Marker marker, VibeVisualsConfig.MarkersConfig config) {
+        double dist = Math.sqrt(marker.pos().squaredDistanceTo(camPos));
+        double scaleDist = Math.max(5.0, Math.min(256.0, dist));
+        float s = (float) (scaleDist * 0.0047) * config.iconScale;
 
-    public static void renderLabels(DrawContext context) {
-        VibeVisualsConfig.MarkersConfig config = VibeVisualsConfigManager.get().markers;
-        if (!config.enabled || !config.showLabels || MARKERS.isEmpty()
-                || projectionMatrix == null || modelViewMatrix == null || cameraPos == null) {
-            return;
+        matrices.push();
+        matrices.translate(marker.pos().x - camPos.x, marker.pos().y - camPos.y, marker.pos().z - camPos.z);
+        matrices.multiply(cam.getRotation());
+        matrices.scale(s, -s, s);
+        Matrix4f matrix = matrices.peek().getPositionMatrix();
+
+        int light = 0xF000F0;
+        int markerRgb = marker.color() & 0x00FFFFFF;
+        int iconBg = 0xFF000000 | markerRgb;
+        int iconText = contrastColor(markerRgb);
+
+        String initial = marker.name().isBlank() ? "?" : marker.name().substring(0, 1).toUpperCase();
+        int cursorY = 0;
+        drawCentered(tr, matrix, consumers, initial, cursorY, iconText, iconBg, config.throughWalls, light);
+        cursorY += tr.fontHeight + 2;
+
+        if (config.showName) {
+            drawCentered(tr, matrix, consumers, marker.name(), cursorY, 0xFFFFFFFF, 0x90000000, config.throughWalls, light);
+            cursorY += tr.fontHeight + 1;
         }
-
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null) {
-            return;
+        if (config.showDistance) {
+            String d = (int) Math.round(dist) + "m";
+            drawCentered(tr, matrix, consumers, d, cursorY, 0xFFCFE3FF, 0x90000000, config.throughWalls, light);
         }
-        String currentDimension = client.world.getRegistryKey().getValue().toString();
-        TextRenderer textRenderer = client.textRenderer;
-        int screenW = context.getScaledWindowWidth();
-        int screenH = context.getScaledWindowHeight();
-        double maxDistance = maxRenderDistance(client);
-        double worldBottom = client.world.getBottomY();
-        double worldTop = client.world.getBottomY() + client.world.getHeight();
+        matrices.pop();
+    }
 
-        for (Marker marker : MARKERS) {
-            if (config.onlyCurrentDimension && !marker.dimension.equals(currentDimension)) {
-                continue;
-            }
-
-            double realDistance = Math.sqrt(cameraPos.squaredDistanceTo(marker.pos));
-            // anchor the label to the same beam the world pass draws (clamped when far), at eye height,
-            // so the icon and distance sit still on the beam instead of drifting around the screen
-            Vec3d basePos = realDistance > maxDistance ? clampToDistance(cameraPos, marker.pos, maxDistance) : marker.pos;
-            double anchorY = Math.max(worldBottom + 1.0, Math.min(worldTop - 1.0, cameraPos.y));
-            Vec3d anchor = new Vec3d(basePos.x, anchorY, basePos.z);
-            float[] screen = projectToScreen(anchor, screenW, screenH);
-            if (screen == null) {
-                continue;
-            }
-
-            String title = iconFor(marker.type) + " " + marker.name;
-            int titleColor = 0xFF000000 | (marker.color & 0x00FFFFFF);
-            int x = Math.round(screen[0]);
-            int y = Math.round(screen[1]);
-            context.drawCenteredTextWithShadow(textRenderer, Text.literal(title), x, y, titleColor);
-
-            // distance label only once the marker is far enough to be worth navigating back to
-            if (config.showDistance && realDistance > 50.0) {
-                String distText = Math.round(realDistance) + "m";
-                context.drawCenteredTextWithShadow(textRenderer, Text.literal(distText), x, y + 10, 0xFFD7DAE8);
-            }
+    private static void drawCentered(TextRenderer tr, Matrix4f matrix, VertexConsumerProvider consumers,
+                                     String text, int y, int color, int bg, boolean throughWalls, int light) {
+        float x = -tr.getWidth(text) / 2.0f;
+        if (throughWalls) {
+            tr.draw(text, x, y, color, false, matrix, consumers,
+                    TextRenderer.TextLayerType.SEE_THROUGH, bg, light);
         }
+        tr.draw(text, x, y, color, false, matrix, consumers,
+                TextRenderer.TextLayerType.NORMAL, throughWalls ? 0 : bg, light);
     }
 
-    private static float[] projectToScreen(Vec3d worldPos, int screenW, int screenH) {
-        Vector4f pos = new Vector4f(
-                (float) (worldPos.x - cameraPos.x),
-                (float) (worldPos.y - cameraPos.y),
-                (float) (worldPos.z - cameraPos.z),
-                1.0f);
-        pos.mul(modelViewMatrix);
-        pos.mul(projectionMatrix);
-        if (pos.w() <= 1.0e-4f) {
-            return null; // behind the camera
-        }
-        float ndcX = pos.x() / pos.w();
-        float ndcY = pos.y() / pos.w();
-        float screenX = (ndcX * 0.5f + 0.5f) * screenW;
-        float screenY = (1.0f - (ndcY * 0.5f + 0.5f)) * screenH;
-        return new float[]{screenX, screenY};
+    private static void drawBeam(VertexConsumer lines, MatrixStack.Entry entry, Matrix4f matrix,
+                                 Vec3d cam, Marker marker, VibeVisualsConfig.MarkersConfig config) {
+        Vec3d base = marker.pos();
+        Vec3d top = base.add(0.0, config.beamHeight, 0.0);
+        int color = marker.color();
+        int red = (color >> 16) & 0xFF, green = (color >> 8) & 0xFF, blue = color & 0xFF;
+        lines.vertex(matrix, (float) (base.x - cam.x), (float) (base.y - cam.y), (float) (base.z - cam.z))
+                .color(red, green, blue, 200).normal(entry, 0f, 1f, 0f).lineWidth(config.lineWidth);
+        lines.vertex(matrix, (float) (top.x - cam.x), (float) (top.y - cam.y), (float) (top.z - cam.z))
+                .color(red, green, blue, 40).normal(entry, 0f, 1f, 0f).lineWidth(config.lineWidth);
     }
 
-    private static double maxRenderDistance(MinecraftClient client) {
-        int chunks = client.options.getViewDistance().getValue();
-        return Math.max(48.0, chunks * 16.0 - 8.0);
+    private static int contrastColor(int rgb) {
+        int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+        double lum = (0.299 * r + 0.587 * g + 0.114 * b);
+        return lum > 140 ? 0xFF101010 : 0xFFFFFFFF;
     }
 
-    private static Vec3d clampToDistance(Vec3d camera, Vec3d target, double maxDistance) {
-        Vec3d direction = target.subtract(camera);
-        double length = direction.length();
-        if (length <= 1.0e-4) {
-            return target;
-        }
-        return camera.add(direction.multiply(maxDistance / length));
-    }
-
-    private static void drawMarker(VertexConsumer consumer, MatrixStack.Entry entry, Matrix4f matrix, Vec3d camera, Vec3d pos, float radius, int color, float lineWidth, double worldBottom, double worldTop, boolean drawGround) {
-        // full-height beacon beam from world bottom (bedrock) to the very top
-        Vec3d top = new Vec3d(pos.x, worldTop, pos.z);
-        Vec3d bottom = new Vec3d(pos.x, worldBottom, pos.z);
-        drawLine(consumer, entry, matrix, camera, top, bottom, color, 255, lineWidth);
-
-        if (!drawGround) {
-            return;
-        }
-
-        int segments = 32;
-        Vec3d previous = pos.add(radius, 0.0, 0.0);
-        for (int index = 1; index <= segments; index++) {
-            double angle = Math.PI * 2.0 * index / segments;
-            Vec3d next = pos.add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
-            drawLine(consumer, entry, matrix, camera, previous, next, color, 190, lineWidth);
-            previous = next;
-        }
-
-        drawLine(consumer, entry, matrix, camera, pos.add(-radius, 0.0, 0.0), pos.add(radius, 0.0, 0.0), color, 210, lineWidth);
-        drawLine(consumer, entry, matrix, camera, pos.add(0.0, 0.0, -radius), pos.add(0.0, 0.0, radius), color, 210, lineWidth);
-    }
-
-    private static String iconFor(MarkerType type) {
-        return switch (type) {
-            case DEATH -> "☠";   // skull and crossbones
-            case EVENT -> "★";   // star
-            case MANUAL -> "⚑";  // flag
-        };
-    }
-
-    private static void drawLine(VertexConsumer consumer, MatrixStack.Entry entry, Matrix4f matrix, Vec3d camera, Vec3d start, Vec3d end, int color, int alpha, float width) {
-        float x1 = (float) (start.x - camera.x);
-        float y1 = (float) (start.y - camera.y);
-        float z1 = (float) (start.z - camera.z);
-        float x2 = (float) (end.x - camera.x);
-        float y2 = (float) (end.y - camera.y);
-        float z2 = (float) (end.z - camera.z);
-        int red = (color >> 16) & 0xFF;
-        int green = (color >> 8) & 0xFF;
-        int blue = color & 0xFF;
-        consumer.vertex(matrix, x1, y1, z1).color(red, green, blue, alpha).normal(entry, 0.0f, 1.0f, 0.0f).lineWidth(width);
-        consumer.vertex(matrix, x2, y2, z2).color(red, green, blue, alpha).normal(entry, 0.0f, 1.0f, 0.0f).lineWidth(width);
-    }
-
-    public enum MarkerType {
-        MANUAL,
-        DEATH,
-        EVENT
-    }
-
-    public record Marker(String name, Vec3d pos, MarkerType type, int color, String dimension) {
+    public record Marker(String name, Vec3d pos, int color) {
     }
 }
