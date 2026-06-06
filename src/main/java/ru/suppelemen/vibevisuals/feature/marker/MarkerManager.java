@@ -99,20 +99,27 @@ public final class MarkerManager {
 
     private static void drawLabel(TextRenderer tr, MatrixStack matrices, VertexConsumerProvider consumers,
                                   Camera cam, Vec3d camPos, Marker marker, VibeVisualsConfig.MarkersConfig config) {
-        double dist = Math.sqrt(marker.pos().squaredDistanceTo(camPos));
-        double scaleDist = Math.max(5.0, Math.min(256.0, dist));
-        float base = (float) (scaleDist * 0.0023);
+        MinecraftClient mc = MinecraftClient.getInstance();
+        Vec3d rel = marker.pos().subtract(camPos);
+        double dist = rel.length();
+
+        // Scale by the DEPTH along the view axis (not euclidean distance), which
+        // is what the perspective projection divides by — this makes the marker a
+        // perfectly constant on-screen size from any distance / angle.
+        Vec3d fwd = mc.player != null ? mc.player.getRotationVector() : new Vec3d(0, 0, 1);
+        double depth = rel.dotProduct(fwd);
+        if (depth < 0.1) {
+            return; // behind the camera
+        }
+        float base = (float) (Math.max(depth, 1.5) * 0.0026);
         float si = base * config.iconScale;
         float st = base * config.textScale;
 
         // Only show the name/distance when the crosshair is aimed at the marker.
         boolean focused = true;
-        MinecraftClient mc = MinecraftClient.getInstance();
         if (config.expandOnLook && mc.player != null) {
-            Vec3d eye = mc.player.getEyePos();
-            Vec3d look = mc.player.getRotationVector();
-            Vec3d to = marker.pos().subtract(eye).normalize();
-            focused = look.dotProduct(to) > 0.9986; // ~3°
+            Vec3d to = rel.normalize();
+            focused = fwd.dotProduct(to) > 0.9986; // ~3°
         }
 
         int light = 0xF000F0;
