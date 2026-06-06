@@ -54,7 +54,6 @@ public class VibeVisualsClient implements ClientModInitializer {
     private static KeyBinding reloadConfigKey;
     private static KeyBinding fullBrightKey;
     private static KeyBinding markersMenuKey;
-    private static KeyBinding markTrapKey;
     private static KeyBinding markPullKey;
     private static KeyBinding zoomKey;
     private static boolean wasInWorld;
@@ -153,12 +152,6 @@ public class VibeVisualsClient implements ClientModInitializer {
     }
 
     private static void registerTrapKeys() {
-        markTrapKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.vibevisuals.mark_trap",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_V,
-                CONTROLS_CATEGORY
-        ));
         markPullKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.vibevisuals.mark_pull",
                 InputUtil.Type.KEYSYM,
@@ -167,12 +160,8 @@ public class VibeVisualsClient implements ClientModInitializer {
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // Hold to drag an area selection; tap to mark a single block.
+            // Hold to drag an area selection; tap to toggle a single block.
             TrapHighlight.handleSelectKey(client, markPullKey.isPressed());
-            // Remove the selection under the crosshair.
-            while (markTrapKey.wasPressed()) {
-                TrapHighlight.removeUnderCrosshair(client);
-            }
         });
     }
 
