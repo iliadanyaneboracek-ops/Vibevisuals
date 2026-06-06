@@ -103,15 +103,14 @@ public final class MarkerManager {
         Vec3d rel = marker.pos().subtract(camPos);
         double dist = rel.length();
 
-        // Scale by the DEPTH along the view axis (not euclidean distance), which
-        // is what the perspective projection divides by — this makes the marker a
-        // perfectly constant on-screen size from any distance / angle.
+        // This render path does NOT perspective-divide the billboard, so a FIXED
+        // scale already gives a constant on-screen size at every distance. (Depth
+        // is only used to cull markers behind the camera.)
         Vec3d fwd = mc.player != null ? mc.player.getRotationVector() : new Vec3d(0, 0, 1);
-        double depth = rel.dotProduct(fwd);
-        if (depth < 0.1) {
+        if (rel.dotProduct(fwd) < 0.1) {
             return; // behind the camera
         }
-        float base = (float) (Math.max(depth, 1.5) * 0.0026);
+        float base = 0.030f;
         float si = base * config.iconScale;
         float st = base * config.textScale;
 
