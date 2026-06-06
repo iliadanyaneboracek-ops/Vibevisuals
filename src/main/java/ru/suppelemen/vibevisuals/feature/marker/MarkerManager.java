@@ -101,31 +101,51 @@ public final class MarkerManager {
                                   Camera cam, Vec3d camPos, Marker marker, VibeVisualsConfig.MarkersConfig config) {
         double dist = Math.sqrt(marker.pos().squaredDistanceTo(camPos));
         double scaleDist = Math.max(5.0, Math.min(256.0, dist));
-        float s = (float) (scaleDist * 0.0047) * config.iconScale;
+        float base = (float) (scaleDist * 0.0023);
+        float si = base * config.iconScale;
+        float st = base * config.textScale;
 
-        matrices.push();
-        matrices.translate(marker.pos().x - camPos.x, marker.pos().y - camPos.y, marker.pos().z - camPos.z);
-        matrices.multiply(cam.getRotation());
-        matrices.scale(s, -s, s);
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        // Only show the name/distance when the crosshair is aimed at the marker.
+        boolean focused = true;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (config.expandOnLook && mc.player != null) {
+            Vec3d eye = mc.player.getEyePos();
+            Vec3d look = mc.player.getRotationVector();
+            Vec3d to = marker.pos().subtract(eye).normalize();
+            focused = look.dotProduct(to) > 0.9986; // ~3°
+        }
 
         int light = 0xF000F0;
         int markerRgb = marker.color() & 0x00FFFFFF;
         int iconBg = 0xFF000000 | markerRgb;
         int iconText = contrastColor(markerRgb);
-
         String initial = marker.name().isBlank() ? "?" : marker.name().substring(0, 1).toUpperCase();
-        int cursorY = 0;
-        drawCentered(tr, matrix, consumers, initial, cursorY, iconText, iconBg, config.throughWalls, light);
-        cursorY += tr.fontHeight + 2;
 
-        if (config.showName) {
-            drawCentered(tr, matrix, consumers, marker.name(), cursorY, 0xFFFFFFFF, 0x90000000, config.throughWalls, light);
-            cursorY += tr.fontHeight + 1;
-        }
-        if (config.showDistance) {
-            String d = (int) Math.round(dist) + "m";
-            drawCentered(tr, matrix, consumers, d, cursorY, 0xFFCFE3FF, 0x90000000, config.throughWalls, light);
+        matrices.push();
+        matrices.translate(marker.pos().x - camPos.x, marker.pos().y - camPos.y, marker.pos().z - camPos.z);
+        matrices.multiply(cam.getRotation());
+
+        // Icon — always shown, centered on the marker.
+        matrices.push();
+        matrices.scale(si, -si, si);
+        Matrix4f im = matrices.peek().getPositionMatrix();
+        drawCentered(tr, im, consumers, initial, -tr.fontHeight / 2, iconText, iconBg, config.throughWalls, light);
+        matrices.pop();
+
+        // Name + distance — only when focused.
+        if (focused && (config.showName || config.showDistance)) {
+            matrices.push();
+            matrices.scale(st, -st, st);
+            Matrix4f lm = matrices.peek().getPositionMatrix();
+            float y = (tr.fontHeight * 0.5f * si / st) + 2; // just below the icon
+            if (config.showName) {
+                drawCentered(tr, lm, consumers, marker.name(), Math.round(y), 0xFFFFFFFF, 0x90000000, config.throughWalls, light);
+                y += tr.fontHeight + 1;
+            }
+            if (config.showDistance) {
+                drawCentered(tr, lm, consumers, (int) Math.round(dist) + "m", Math.round(y), 0xFFCFE3FF, 0x90000000, config.throughWalls, light);
+            }
+            matrices.pop();
         }
         matrices.pop();
     }
