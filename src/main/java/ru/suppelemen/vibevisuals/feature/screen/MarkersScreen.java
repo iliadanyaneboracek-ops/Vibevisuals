@@ -89,9 +89,9 @@ public class MarkersScreen extends Screen {
 
         HudCardRenderer.drawCard(ctx, panelX, panelY, PANEL_W, PANEL_H, panel);
         HudCardRenderer.drawOverlayCard(ctx, panelX, panelY, PANEL_W, HEADER_H, m.radius, m.backgroundColor, m.headerOpacity);
-        SmoothText.drawText(ctx, "Markers", panelX + 12, panelY + 9, TITLE_PX, m.titleColor);
+        txt(ctx, "Markers", panelX + 12, panelY + 9, TITLE_PX, m.titleColor);
         String count = MarkerManager.markers().size() + " saved";
-        SmoothText.drawText(ctx, count, panelX + PANEL_W - 12 - SmoothText.measureText(count, BODY_PX), panelY + 10, BODY_PX, m.mutedTextColor);
+        txt(ctx, count, panelX + PANEL_W - 12 - tw(count, BODY_PX), panelY + 10, BODY_PX, m.mutedTextColor);
 
         boolean blockHover = pickerOpen || creating;
 
@@ -136,7 +136,7 @@ public class MarkersScreen extends Screen {
         ctx.fill(swX, swY, swX + sw, swY + sw, 0xFF000000 | rgb);
         ctx.fill(swX, swY, swX + sw, swY + 1, 0x40FFFFFF);
         String initial = mk.name().isBlank() ? "?" : mk.name().substring(0, 1).toUpperCase(Locale.ROOT);
-        SmoothText.drawText(ctx, initial, swX + (sw - SmoothText.measureText(initial, BODY_PX)) / 2, swY + 6, BODY_PX, contrast(rgb));
+        txt(ctx, initial, swX + (sw - tw(initial, BODY_PX)) / 2, swY + 6, BODY_PX, contrast(rgb));
 
         // Right controls: visibility square + delete X.
         int eyeX = x + w - 8 - 12;
@@ -148,7 +148,7 @@ public class MarkersScreen extends Screen {
             ctx.fill(eyeX, y + 9, eyeX + 12, y + 21, 0x40FFFFFF);
             ctx.fill(eyeX + 2, y + 11, eyeX + 10, y + 19, 0xFF15151D);
         }
-        SmoothText.drawText(ctx, "X", trashX + 2, y + 10, BODY_PX, inside(mx, my, trashX, y + 6, 16, 18) ? 0xFFFF6B6B : m.mutedTextColor);
+        txt(ctx, "X", trashX + 2, y + 10, BODY_PX, inside(mx, my, trashX, y + 6, 16, 18) ? 0xFFFF6B6B : m.mutedTextColor);
 
         int textX = swX + sw + 8;
         int rightLimit = trashX - 8;
@@ -156,26 +156,26 @@ public class MarkersScreen extends Screen {
         if (editingIndex == index) {
             String shown = cName + caret();
             ctx.fill(textX - 2, y + 5, rightLimit, y + 17, 0x66000000);
-            SmoothText.drawText(ctx, shown, textX, y + 6, BODY_PX, 0xFFFFFFFF);
+            txt(ctx, shown, textX, y + 6, BODY_PX, 0xFFFFFFFF);
         } else {
-            SmoothText.drawText(ctx, trim(mk.name(), rightLimit - textX, BODY_PX), textX, y + 6, BODY_PX, m.titleColor);
+            txt(ctx, trim(mk.name(), rightLimit - textX, BODY_PX), textX, y + 6, BODY_PX, m.titleColor);
         }
 
         String coords = (int) Math.floor(mk.pos().x) + " " + (int) Math.floor(mk.pos().y) + " " + (int) Math.floor(mk.pos().z);
         if (client != null && client.player != null) {
             coords += "  |  " + (int) Math.round(Math.sqrt(mk.pos().squaredDistanceTo(client.player.getLerpedPos(1.0f)))) + "m";
         }
-        SmoothText.drawText(ctx, coords, textX, y + 19, SMALL_PX, m.mutedTextColor);
+        txt(ctx, coords, textX, y + 19, SMALL_PX, m.mutedTextColor);
         String copy = "copy";
-        int copyX = rightLimit - SmoothText.measureText(copy, SMALL_PX);
-        SmoothText.drawText(ctx, copy, copyX, y + 19, SMALL_PX, inside(mx, my, copyX, y + 18, 30, 12) ? 0xFF8FE3FF : m.mutedTextColor);
+        int copyX = rightLimit - tw(copy, SMALL_PX);
+        txt(ctx, copy, copyX, y + 19, SMALL_PX, inside(mx, my, copyX, y + 18, 30, 12) ? 0xFF8FE3FF : m.mutedTextColor);
     }
 
     private void drawButton(DrawContext ctx, int x, int y, int w, int h, String label, int mx, int my, boolean block) {
         VibeVisualsConfig.MenuConfig m = menu();
         boolean hov = !block && inside(mx, my, x, y, w, h);
         HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, 6, hov ? m.accentColor : m.cardColor, hov ? 0.6f : m.cardOpacity);
-        SmoothText.drawText(ctx, label, x + (w - SmoothText.measureText(label, BODY_PX)) / 2, y + (h - (int) BODY_PX) / 2, BODY_PX, m.titleColor);
+        txt(ctx, label, x + (w - tw(label, BODY_PX)) / 2, y + (h - (int) BODY_PX) / 2, BODY_PX, m.titleColor);
     }
 
     // ---------- create dialog ----------
@@ -188,20 +188,20 @@ public class MarkersScreen extends Screen {
         cpX = width / 2 - cpW / 2;
         cpY = height / 2 - cpH / 2;
         HudCardRenderer.drawOverlayCard(ctx, cpX, cpY, cpW, cpH, 8, 0xFF0A0A12, 0.97f);
-        SmoothText.drawText(ctx, "New marker", cpX + 12, cpY + 10, TITLE_PX, m.titleColor);
+        txt(ctx, "New marker", cpX + 12, cpY + 10, TITLE_PX, m.titleColor);
 
         int fx = cpX + 12, fw = cpW - 24;
         // Name
-        SmoothText.drawText(ctx, "Name", fx, cpY + 32, SMALL_PX, m.mutedTextColor);
+        txt(ctx, "Name", fx, cpY + 32, SMALL_PX, m.mutedTextColor);
         field(ctx, fx, cpY + 42, fw, cName, cField == 0);
         // Coords
-        SmoothText.drawText(ctx, "Coordinates", fx, cpY + 66, SMALL_PX, m.mutedTextColor);
+        txt(ctx, "Coordinates", fx, cpY + 66, SMALL_PX, m.mutedTextColor);
         int cw = (fw - 2 * 6) / 3;
         field(ctx, fx, cpY + 76, cw, cx, cField == 1);
         field(ctx, fx + cw + 6, cpY + 76, cw, cy, cField == 2);
         field(ctx, fx + 2 * (cw + 6), cpY + 76, cw, cz, cField == 3);
         // Color
-        SmoothText.drawText(ctx, "Color", fx, cpY + 102, SMALL_PX, m.mutedTextColor);
+        txt(ctx, "Color", fx, cpY + 102, SMALL_PX, m.mutedTextColor);
         ctx.fill(fx, cpY + 112, fx + 30, cpY + 128, 0xFF000000 | (cColor & 0x00FFFFFF));
         ctx.fill(fx, cpY + 112, fx + 30, cpY + 113, 0x40FFFFFF);
         // Buttons
@@ -209,9 +209,9 @@ public class MarkersScreen extends Screen {
         boolean cancelHov = inside(mx, my, cpX + 12, by, 100, 20) && !pickerOpen;
         boolean createHov = inside(mx, my, cpX + cpW - 12 - 100, by, 100, 20) && !pickerOpen;
         HudCardRenderer.drawOverlayCard(ctx, cpX + 12, by, 100, 20, 6, cancelHov ? m.activeColor : m.cardColor, cancelHov ? m.activeOpacity : m.cardOpacity);
-        SmoothText.drawText(ctx, "Cancel", cpX + 12 + (100 - SmoothText.measureText("Cancel", BODY_PX)) / 2, by + 6, BODY_PX, m.titleColor);
+        txt(ctx, "Cancel", cpX + 12 + (100 - tw("Cancel", BODY_PX)) / 2, by + 6, BODY_PX, m.titleColor);
         HudCardRenderer.drawOverlayCard(ctx, cpX + cpW - 12 - 100, by, 100, 20, 6, m.accentColor, createHov ? 0.75f : 0.55f);
-        SmoothText.drawText(ctx, "Create", cpX + cpW - 12 - 100 + (100 - SmoothText.measureText("Create", BODY_PX)) / 2, by + 6, BODY_PX, 0xFFFFFFFF);
+        txt(ctx, "Create", cpX + cpW - 12 - 100 + (100 - tw("Create", BODY_PX)) / 2, by + 6, BODY_PX, 0xFFFFFFFF);
     }
 
     private void field(DrawContext ctx, int x, int y, int w, String value, boolean focused) {
@@ -220,7 +220,7 @@ public class MarkersScreen extends Screen {
             ctx.fill(x, y + 15, x + w, y + 16, menu().accentColor);
         }
         String shown = value + (focused ? caret() : "");
-        SmoothText.drawText(ctx, trim(shown, w - 8, BODY_PX), x + 4, y + 4, BODY_PX, 0xFFFFFFFF);
+        txt(ctx, trim(shown, w - 8, BODY_PX), x + 4, y + 4, BODY_PX, 0xFFFFFFFF);
     }
 
     private void openCreate(Vec3d pos) {
@@ -285,7 +285,7 @@ public class MarkersScreen extends Screen {
                 int sw = 20, swX = listX + 6, swY = y + (ROW_H - sw) / 2;
                 int eyeX = listX + listW - 8 - 12;
                 int trashX = eyeX - 10 - 12;
-                int copyX = (trashX - 8) - SmoothText.measureText("copy", SMALL_PX);
+                int copyX = (trashX - 8) - tw("copy", SMALL_PX);
                 if (inside(mx, my, swX, swY, sw, sw)) { openPicker(i, false, mk.color()); return true; }
                 if (inside(mx, my, eyeX, y + 9, 12, 12)) { mk.setVisible(!mk.visible()); MarkerManager.save(); return true; }
                 if (inside(mx, my, trashX, y + 6, 16, 18)) { commitEdit(); MarkerManager.remove(i); return true; }
@@ -460,7 +460,7 @@ public class MarkersScreen extends Screen {
         int hy = pkSvY + Math.round(pkH * sv);
         ctx.fill(pkHueX - 1, hy - 1, pkHueX + bar + 1, hy + 1, 0xFFFFFFFF);
         int[] full = hsvToRgb(pkH, pkS, pkV);
-        SmoothText.drawText(ctx, String.format(Locale.ROOT, "#%02X%02X%02X", full[0], full[1], full[2]), pkSvX, ay + popH - 11, SMALL_PX, 0xFFFFFFFF);
+        txt(ctx, String.format(Locale.ROOT, "#%02X%02X%02X", full[0], full[1], full[2]), pkSvX, ay + popH - 11, SMALL_PX, 0xFFFFFFFF);
     }
 
     private boolean pickerClick(double mx, double my) {
@@ -482,6 +482,21 @@ public class MarkersScreen extends Screen {
 
     // ---------- helpers ----------
 
+    /**
+     * Draw SmoothText with the same baseline lift the ClickGUI uses: SmoothText
+     * draws a full glyph CELL whose visible cap sits ~0.27·size below the cell
+     * top, so we lift it so {@code y} means "top of the cap" (otherwise letters
+     * drift downward).
+     */
+    private static void txt(DrawContext ctx, String s, int x, int y, float px, int color) {
+        int g = Math.max(4, Math.round(px));
+        SmoothText.drawText(ctx, s, x, y - Math.round(g * 0.27f), g, color);
+    }
+
+    private static int tw(String s, float px) {
+        return SmoothText.measureText(s, Math.max(4, Math.round(px)));
+    }
+
     private static String caret() {
         return (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
     }
@@ -491,8 +506,8 @@ public class MarkersScreen extends Screen {
     }
 
     private String trim(String s, int maxW, float px) {
-        if (SmoothText.measureText(s, px) <= maxW) return s;
-        while (s.length() > 1 && SmoothText.measureText(s + "..", px) > maxW) s = s.substring(0, s.length() - 1);
+        if (tw(s, px) <= maxW) return s;
+        while (s.length() > 1 && tw(s + "..", px) > maxW) s = s.substring(0, s.length() - 1);
         return s + "..";
     }
 
