@@ -80,6 +80,16 @@ public final class MarkerManager {
         save();
     }
 
+    /** Add a fully-specified marker (used by the create dialog). */
+    public static void add(String name, Vec3d pos, int color) {
+        VibeVisualsConfig.MarkersConfig config = VibeVisualsConfigManager.get().markers;
+        while (MARKERS.size() >= config.maxMarkers) {
+            MARKERS.remove(0);
+        }
+        MARKERS.add(new Marker(name == null || name.isBlank() ? "Marker " + nextId++ : name, pos, color));
+        save();
+    }
+
     public static void removeLast() {
         if (!MARKERS.isEmpty()) {
             MARKERS.remove(MARKERS.size() - 1);
