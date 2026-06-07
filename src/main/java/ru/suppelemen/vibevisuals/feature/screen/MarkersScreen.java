@@ -15,6 +15,7 @@ import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.marker.MarkerManager.Marker;
+import ru.suppelemen.vibevisuals.theme.MenuTheme;
 import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
 import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
 import ru.suppelemen.vibevisuals.util.font.SmoothText;
@@ -46,7 +47,7 @@ public class MarkersScreen extends Screen {
     // Create dialog.
     private boolean creating;
     private String cName = "", cx = "", cy = "", cz = "";
-    private int cColor = 0xFF7C5CFF;
+    private int cColor = 0xFFFFFFFF;
     private int cField = -1; // 0 name, 1 x, 2 y, 3 z
 
     // Colour picker.
@@ -143,7 +144,7 @@ public class MarkersScreen extends Screen {
         int trashX = eyeX - 10 - 12;
         // visibility
         if (mk.visible()) {
-            ctx.fill(eyeX, y + 9, eyeX + 12, y + 21, 0xFF8FE3FF);
+            ctx.fill(eyeX, y + 9, eyeX + 12, y + 21, MenuTheme.ACCENT_USER);
         } else {
             ctx.fill(eyeX, y + 9, eyeX + 12, y + 21, 0x40FFFFFF);
             ctx.fill(eyeX + 2, y + 11, eyeX + 10, y + 19, 0xFF15151D);
@@ -168,13 +169,13 @@ public class MarkersScreen extends Screen {
         txt(ctx, coords, textX, y + 19, SMALL_PX, m.mutedTextColor);
         String copy = "copy";
         int copyX = rightLimit - tw(copy, SMALL_PX);
-        txt(ctx, copy, copyX, y + 19, SMALL_PX, inside(mx, my, copyX, y + 18, 30, 12) ? 0xFF8FE3FF : m.mutedTextColor);
+        txt(ctx, copy, copyX, y + 19, SMALL_PX, inside(mx, my, copyX, y + 18, 30, 12) ? MenuTheme.ACCENT_USER : m.mutedTextColor);
     }
 
     private void drawButton(DrawContext ctx, int x, int y, int w, int h, String label, int mx, int my, boolean block) {
         VibeVisualsConfig.MenuConfig m = menu();
         boolean hov = !block && inside(mx, my, x, y, w, h);
-        HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, 6, hov ? m.accentColor : m.cardColor, hov ? 0.6f : m.cardOpacity);
+        HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, 6, hov ? MenuTheme.ACCENT_USER : m.cardColor, hov ? 0.6f : m.cardOpacity);
         txt(ctx, label, x + (w - tw(label, BODY_PX)) / 2, y + (h - (int) BODY_PX) / 2, BODY_PX, m.titleColor);
     }
 
@@ -210,14 +211,14 @@ public class MarkersScreen extends Screen {
         boolean createHov = inside(mx, my, cpX + cpW - 12 - 100, by, 100, 20) && !pickerOpen;
         HudCardRenderer.drawOverlayCard(ctx, cpX + 12, by, 100, 20, 6, cancelHov ? m.activeColor : m.cardColor, cancelHov ? m.activeOpacity : m.cardOpacity);
         txt(ctx, "Cancel", cpX + 12 + (100 - tw("Cancel", BODY_PX)) / 2, by + 6, BODY_PX, m.titleColor);
-        HudCardRenderer.drawOverlayCard(ctx, cpX + cpW - 12 - 100, by, 100, 20, 6, m.accentColor, createHov ? 0.75f : 0.55f);
+        HudCardRenderer.drawOverlayCard(ctx, cpX + cpW - 12 - 100, by, 100, 20, 6, MenuTheme.ACCENT_USER, createHov ? 0.75f : 0.55f);
         txt(ctx, "Create", cpX + cpW - 12 - 100 + (100 - tw("Create", BODY_PX)) / 2, by + 6, BODY_PX, 0xFFFFFFFF);
     }
 
     private void field(DrawContext ctx, int x, int y, int w, String value, boolean focused) {
         ctx.fill(x, y, x + w, y + 16, focused ? 0xCC1A1A26 : 0x99121219);
         if (focused) {
-            ctx.fill(x, y + 15, x + w, y + 16, menu().accentColor);
+            ctx.fill(x, y + 15, x + w, y + 16, MenuTheme.ACCENT_USER);
         }
         String shown = value + (focused ? caret() : "");
         txt(ctx, trim(shown, w - 8, BODY_PX), x + 4, y + 4, BODY_PX, 0xFFFFFFFF);
@@ -230,7 +231,7 @@ public class MarkersScreen extends Screen {
         cx = Integer.toString((int) Math.floor(pos.x));
         cy = Integer.toString((int) Math.floor(pos.y));
         cz = Integer.toString((int) Math.floor(pos.z));
-        cColor = menu().accentColor == 0 ? 0xFF7C5CFF : VibeVisualsConfigManager.get().markers.color;
+        cColor = MenuTheme.ACCENT_USER;
         cField = 0;
     }
 
