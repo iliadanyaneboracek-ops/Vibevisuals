@@ -33,6 +33,7 @@ public class VibeVisualsConfig {
     public PvpCardConfig pvpCard = PvpCardConfig.defaults();
     public ArmorHudConfig armorHud = ArmorHudConfig.defaults();
     public InventoryHudConfig inventoryHud = InventoryHudConfig.defaults();
+    public ShulkerPreviewConfig shulkerPreview = ShulkerPreviewConfig.defaults();
     public HotbarConfig hotbar = HotbarConfig.defaults();
     public FireOverlayConfig fireOverlay = FireOverlayConfig.defaults();
     public ProjectilePredictionConfig projectilePrediction = ProjectilePredictionConfig.defaults();
@@ -94,6 +95,10 @@ public class VibeVisualsConfig {
 
         if (inventoryHud == null) {
             inventoryHud = InventoryHudConfig.defaults();
+        }
+
+        if (shulkerPreview == null) {
+            shulkerPreview = ShulkerPreviewConfig.defaults();
         }
 
         if (hotbar == null) {
@@ -244,6 +249,7 @@ public class VibeVisualsConfig {
         pvpCard.validate();
         armorHud.validate();
         inventoryHud.validate();
+        shulkerPreview.validate();
         hotbar.validate();
         fireOverlay.validate();
         projectilePrediction.validate();
@@ -1031,6 +1037,20 @@ public class VibeVisualsConfig {
         }
 
         public void validate() {
+        }
+    }
+
+    public static class ShulkerPreviewConfig {
+        public boolean enabled = true;
+        public float opacity = 0.7f;
+        public int color = 0xFFFFFFFF;
+
+        public static ShulkerPreviewConfig defaults() {
+            return new ShulkerPreviewConfig();
+        }
+
+        public void validate() {
+            opacity = clamp(opacity, 0.0f, 1.0f);
         }
     }
 
