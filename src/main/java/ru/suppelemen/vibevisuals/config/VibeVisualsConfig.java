@@ -983,7 +983,7 @@ public class VibeVisualsConfig {
 
     public static class MarkersConfig {
         public boolean enabled = true;
-        public int color = 0xFF7C5CFF;       // colour of the NEXT marker you place
+        public int color = 0xFF5CE38B;       // colour of the NEXT marker you place
         public int maxMarkers = 32;
         public boolean showName = true;
         public boolean showDistance = true;
