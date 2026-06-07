@@ -61,6 +61,7 @@ public class VibeVisualsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         VibeVisualsConfigManager.load();
+        MarkerManager.load();
         ru.suppelemen.vibevisuals.config.ConfigShareManager.init();
         // Apply the menu palette early so the HUD (which uses it now) picks the
         // right theme before the first frame instead of waiting for the user

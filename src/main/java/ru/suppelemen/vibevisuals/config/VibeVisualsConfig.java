@@ -985,6 +985,7 @@ public class VibeVisualsConfig {
         public float iconScale = 1.0f;         // icon (square) on-screen size
         public float textScale = 1.0f;         // name + distance label size
         public boolean expandOnLook = true;    // show name/distance only when aimed at it
+        public float opacity = 0.9f;            // overall marker transparency
         public boolean beam = false;           // vertical beacon beam
         public float beamHeight = 24.0f;
         public float lineWidth = 3.0f;
@@ -997,6 +998,7 @@ public class VibeVisualsConfig {
             maxMarkers = Math.max(1, Math.min(128, maxMarkers));
             iconScale = clamp(iconScale, 0.3f, 4.0f);
             textScale = clamp(textScale, 0.3f, 4.0f);
+            opacity = clamp(opacity, 0.1f, 1.0f);
             beamHeight = clamp(beamHeight, 1.0f, 320.0f);
             lineWidth = clamp(lineWidth, 1.0f, 10.0f);
         }
