@@ -1,11 +1,15 @@
 package ru.suppelemen.vibevisuals.feature.screen;
 
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.input.CharInput;
 import net.minecraft.client.input.KeyInput;
+import net.minecraft.entity.Entity;
 import net.minecraft.text.Text;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
@@ -13,46 +17,55 @@ import ru.suppelemen.vibevisuals.feature.marker.MarkerManager;
 import ru.suppelemen.vibevisuals.feature.marker.MarkerManager.Marker;
 import ru.suppelemen.vibevisuals.theme.HudCardRenderType;
 import ru.suppelemen.vibevisuals.theme.HudVisualSettings;
+import ru.suppelemen.vibevisuals.util.font.SmoothText;
 import ru.suppelemen.vibevisuals.util.render.HudCardRenderer;
 
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Styled markers manager (liquid-glass). Lists every waypoint with rename,
- * per-marker colour picker, visibility toggle and coordinate copy.
- */
+/** Styled markers manager (liquid-glass, our SmoothText font). */
 public class MarkersScreen extends Screen {
     private final HudVisualSettings panel = new HudVisualSettings();
 
-    private static final int PANEL_W = 360;
-    private static final int PANEL_H = 248;
-    private static final int HEADER_H = 26;
-    private static final int TOOLBAR_H = 26;
-    private static final int ROW_H = 30;
+    private static final int PANEL_W = 380;
+    private static final int PANEL_H = 250;
+    private static final int HEADER_H = 28;
+    private static final int TOOLBAR_H = 28;
+    private static final int ROW_H = 32;
     private static final int ROW_GAP = 4;
+    private static final float TITLE_PX = 12f;
+    private static final float BODY_PX = 9.5f;
+    private static final float SMALL_PX = 8f;
 
     private int panelX, panelY, listTop, listBottom, listX, listW;
     private int scroll;
 
+    // Row rename.
     private int editingIndex = -1;
-    private String editBuffer = "";
 
-    // Colour picker popup (open when pickerIndex >= 0).
-    private int pickerIndex = -1;
-    private float pkH, pkS, pkV, pkA = 1f;
-    private int colorDrag; // 0 none, 1 SV, 2 hue, 3 alpha
-    private int pkSvX, pkSvY, pkSvSize, pkHueX, pkAlphaX, pkBarW;
+    // Create dialog.
+    private boolean creating;
+    private String cName = "", cx = "", cy = "", cz = "";
+    private int cColor = 0xFF7C5CFF;
+    private int cField = -1; // 0 name, 1 x, 2 y, 3 z
+
+    // Colour picker.
+    private boolean pickerOpen;
+    private boolean pickerForCreate;
+    private int pickerMarker = -1;
+    private float pkH, pkS, pkV;
+    private int colorDrag;
+    private int pkSvX, pkSvY, pkSvSize, pkHueX, pkBarW;
 
     public MarkersScreen() {
-        super(Text.translatable("screen.vibevisuals.markers"));
+        super(Text.literal("Markers"));
     }
 
     @Override
     protected void init() {
         panel.renderType = HudCardRenderType.LIQUID_GLASS;
-        panel.radius = VibeVisualsConfigManager.get().menu.radius;
-        panel.opacity = VibeVisualsConfigManager.get().menu.opacity;
+        panel.radius = menu().radius;
+        panel.opacity = menu().opacity;
         panel.glow = false;
         panel.blur = false;
         panelX = width / 2 - PANEL_W / 2;
@@ -67,6 +80,8 @@ public class MarkersScreen extends Screen {
         return VibeVisualsConfigManager.get().menu;
     }
 
+    // ---------- render ----------
+
     @Override
     public void render(DrawContext ctx, int mx, int my, float delta) {
         renderInGameBackground(ctx);
@@ -74,133 +89,213 @@ public class MarkersScreen extends Screen {
 
         HudCardRenderer.drawCard(ctx, panelX, panelY, PANEL_W, PANEL_H, panel);
         HudCardRenderer.drawOverlayCard(ctx, panelX, panelY, PANEL_W, HEADER_H, m.radius, m.backgroundColor, m.headerOpacity);
-        ctx.drawText(textRenderer, Text.literal("Markers"), panelX + 12, panelY + 9, m.titleColor, false);
+        SmoothText.drawText(ctx, "Markers", panelX + 12, panelY + 9, TITLE_PX, m.titleColor);
         String count = MarkerManager.markers().size() + " saved";
-        ctx.drawText(textRenderer, Text.literal(count), panelX + PANEL_W - 12 - textRenderer.getWidth(count), panelY + 9, m.mutedTextColor, false);
+        SmoothText.drawText(ctx, count, panelX + PANEL_W - 12 - SmoothText.measureText(count, BODY_PX), panelY + 10, BODY_PX, m.mutedTextColor);
 
-        // Toolbar buttons.
-        int tbY = panelY + HEADER_H + 3;
+        boolean blockHover = pickerOpen || creating;
+
+        int tbY = panelY + HEADER_H + 4;
         int bw = (PANEL_W - 20 - 2 * 6) / 3;
-        drawButton(ctx, panelX + 10, tbY, bw, 20, "+ Crosshair", mx, my);
-        drawButton(ctx, panelX + 10 + bw + 6, tbY, bw, 20, "+ At me", mx, my);
-        drawButton(ctx, panelX + 10 + 2 * (bw + 6), tbY, bw, 20, "Clear", mx, my);
+        drawButton(ctx, panelX + 10, tbY, bw, 20, "+ Crosshair", mx, my, blockHover);
+        drawButton(ctx, panelX + 10 + bw + 6, tbY, bw, 20, "+ At me", mx, my, blockHover);
+        drawButton(ctx, panelX + 10 + 2 * (bw + 6), tbY, bw, 20, "Clear", mx, my, blockHover);
 
-        // List.
         List<Marker> list = MarkerManager.markers();
         ctx.enableScissor(listX, listTop, listX + listW, listBottom);
         int y = listTop + 4 - scroll;
         for (int i = 0; i < list.size(); i++) {
             if (y + ROW_H >= listTop && y <= listBottom) {
-                drawRow(ctx, list.get(i), i, listX, y, listW, mx, my);
+                drawRow(ctx, list.get(i), i, listX, y, listW, mx, my, blockHover);
             }
             y += ROW_H + ROW_GAP;
         }
         ctx.disableScissor();
 
         int contentH = list.size() * (ROW_H + ROW_GAP);
-        int viewH = listBottom - listTop - 4;
-        int maxScroll = Math.max(0, contentH - viewH);
+        int maxScroll = Math.max(0, contentH - (listBottom - listTop - 4));
         if (scroll > maxScroll) scroll = maxScroll;
 
-        if (pickerIndex >= 0 && pickerIndex < list.size()) {
-            drawPicker(ctx, list.get(pickerIndex));
+        if (creating) {
+            drawCreate(ctx, mx, my);
         }
-
+        if (pickerOpen) {
+            drawPicker(ctx);
+        }
         super.render(ctx, mx, my, delta);
     }
 
-    private void drawRow(DrawContext ctx, Marker mk, int index, int x, int y, int w, int mx, int my) {
+    private void drawRow(DrawContext ctx, Marker mk, int index, int x, int y, int w, int mx, int my, boolean block) {
         VibeVisualsConfig.MenuConfig m = menu();
-        boolean hov = inside(mx, my, x, y, w, ROW_H) && pickerIndex < 0;
+        boolean hov = !block && inside(mx, my, x, y, w, ROW_H);
         HudCardRenderer.drawOverlayCard(ctx, x, y, w, ROW_H, 6, hov ? m.activeColor : m.cardColor,
                 hov ? m.activeOpacity : m.cardOpacity);
 
-        // Colour swatch with initial.
-        int sw = 18;
-        int swX = x + 6, swY = y + (ROW_H - sw) / 2;
+        int sw = 20, swX = x + 6, swY = y + (ROW_H - sw) / 2;
         int rgb = mk.color() & 0x00FFFFFF;
         ctx.fill(swX, swY, swX + sw, swY + sw, 0xFF000000 | rgb);
         ctx.fill(swX, swY, swX + sw, swY + 1, 0x40FFFFFF);
         String initial = mk.name().isBlank() ? "?" : mk.name().substring(0, 1).toUpperCase(Locale.ROOT);
-        int ic = contrast(rgb);
-        ctx.drawText(textRenderer, initial, swX + (sw - textRenderer.getWidth(initial)) / 2, swY + 5, ic, false);
+        SmoothText.drawText(ctx, initial, swX + (sw - SmoothText.measureText(initial, BODY_PX)) / 2, swY + 6, BODY_PX, contrast(rgb));
 
-        // Right-side controls: eye, trash.
-        int eyeX = x + w - 6 - 16;
-        int trashX = eyeX - 4 - 16;
-        boolean visHov = inside(mx, my, eyeX, y + 4, 16, 16);
-        ctx.drawText(textRenderer, mk.visible() ? "◉" : "○", eyeX, y + 6, mk.visible() ? 0xFF8FE3FF : m.mutedTextColor, false);
-        ctx.drawText(textRenderer, "✕", trashX + 4, y + 6, inside(mx, my, trashX, y + 4, 16, 16) ? 0xFFFF6B6B : m.mutedTextColor, false);
+        // Right controls: visibility square + delete X.
+        int eyeX = x + w - 8 - 12;
+        int trashX = eyeX - 10 - 12;
+        // visibility
+        if (mk.visible()) {
+            ctx.fill(eyeX, y + 9, eyeX + 12, y + 21, 0xFF8FE3FF);
+        } else {
+            ctx.fill(eyeX, y + 9, eyeX + 12, y + 21, 0x40FFFFFF);
+            ctx.fill(eyeX + 2, y + 11, eyeX + 10, y + 19, 0xFF15151D);
+        }
+        SmoothText.drawText(ctx, "X", trashX + 2, y + 10, BODY_PX, inside(mx, my, trashX, y + 6, 16, 18) ? 0xFFFF6B6B : m.mutedTextColor);
 
         int textX = swX + sw + 8;
-        int rightLimit = trashX - 6;
+        int rightLimit = trashX - 8;
 
-        // Line 1: name (or edit buffer).
         if (editingIndex == index) {
-            String shown = editBuffer + ((System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "");
-            ctx.fill(textX - 2, y + 4, rightLimit, y + 15, 0x66000000);
-            ctx.drawText(textRenderer, shown, textX, y + 5, 0xFFFFFFFF, false);
+            String shown = cName + caret();
+            ctx.fill(textX - 2, y + 5, rightLimit, y + 17, 0x66000000);
+            SmoothText.drawText(ctx, shown, textX, y + 6, BODY_PX, 0xFFFFFFFF);
         } else {
-            ctx.drawText(textRenderer, trim(mk.name(), rightLimit - textX), textX, y + 5, m.titleColor, false);
+            SmoothText.drawText(ctx, trim(mk.name(), rightLimit - textX, BODY_PX), textX, y + 6, BODY_PX, m.titleColor);
         }
 
-        // Line 2: coords + distance + copy.
         String coords = (int) Math.floor(mk.pos().x) + " " + (int) Math.floor(mk.pos().y) + " " + (int) Math.floor(mk.pos().z);
-        String dist = "";
         if (client != null && client.player != null) {
-            dist = "  ·  " + (int) Math.round(Math.sqrt(mk.pos().squaredDistanceTo(client.player.getLerpedPos(1.0f)))) + "m";
+            coords += "  |  " + (int) Math.round(Math.sqrt(mk.pos().squaredDistanceTo(client.player.getLerpedPos(1.0f)))) + "m";
         }
-        ctx.drawText(textRenderer, coords + dist, textX, y + 17, m.mutedTextColor, false);
-        int copyX = rightLimit - textRenderer.getWidth("copy");
-        ctx.drawText(textRenderer, "copy", copyX, y + 17, inside(mx, my, copyX, y + 16, 30, 10) ? 0xFF8FE3FF : m.mutedTextColor, false);
+        SmoothText.drawText(ctx, coords, textX, y + 19, SMALL_PX, m.mutedTextColor);
+        String copy = "copy";
+        int copyX = rightLimit - SmoothText.measureText(copy, SMALL_PX);
+        SmoothText.drawText(ctx, copy, copyX, y + 19, SMALL_PX, inside(mx, my, copyX, y + 18, 30, 12) ? 0xFF8FE3FF : m.mutedTextColor);
     }
 
-    private void drawButton(DrawContext ctx, int x, int y, int w, int h, String label, int mx, int my) {
+    private void drawButton(DrawContext ctx, int x, int y, int w, int h, String label, int mx, int my, boolean block) {
         VibeVisualsConfig.MenuConfig m = menu();
-        boolean hov = inside(mx, my, x, y, w, h) && pickerIndex < 0;
+        boolean hov = !block && inside(mx, my, x, y, w, h);
         HudCardRenderer.drawOverlayCard(ctx, x, y, w, h, 6, hov ? m.accentColor : m.cardColor, hov ? 0.6f : m.cardOpacity);
-        ctx.drawText(textRenderer, label, x + (w - textRenderer.getWidth(label)) / 2, y + (h - 8) / 2, m.titleColor, false);
+        SmoothText.drawText(ctx, label, x + (w - SmoothText.measureText(label, BODY_PX)) / 2, y + (h - (int) BODY_PX) / 2, BODY_PX, m.titleColor);
+    }
+
+    // ---------- create dialog ----------
+
+    private int cpX, cpY, cpW = 250, cpH = 168;
+
+    private void drawCreate(DrawContext ctx, int mx, int my) {
+        VibeVisualsConfig.MenuConfig m = menu();
+        ctx.fill(panelX, panelY, panelX + PANEL_W, panelY + PANEL_H, 0x88000000); // dim panel
+        cpX = width / 2 - cpW / 2;
+        cpY = height / 2 - cpH / 2;
+        HudCardRenderer.drawOverlayCard(ctx, cpX, cpY, cpW, cpH, 8, 0xFF0A0A12, 0.97f);
+        SmoothText.drawText(ctx, "New marker", cpX + 12, cpY + 10, TITLE_PX, m.titleColor);
+
+        int fx = cpX + 12, fw = cpW - 24;
+        // Name
+        SmoothText.drawText(ctx, "Name", fx, cpY + 32, SMALL_PX, m.mutedTextColor);
+        field(ctx, fx, cpY + 42, fw, cName, cField == 0);
+        // Coords
+        SmoothText.drawText(ctx, "Coordinates", fx, cpY + 66, SMALL_PX, m.mutedTextColor);
+        int cw = (fw - 2 * 6) / 3;
+        field(ctx, fx, cpY + 76, cw, cx, cField == 1);
+        field(ctx, fx + cw + 6, cpY + 76, cw, cy, cField == 2);
+        field(ctx, fx + 2 * (cw + 6), cpY + 76, cw, cz, cField == 3);
+        // Color
+        SmoothText.drawText(ctx, "Color", fx, cpY + 102, SMALL_PX, m.mutedTextColor);
+        ctx.fill(fx, cpY + 112, fx + 30, cpY + 128, 0xFF000000 | (cColor & 0x00FFFFFF));
+        ctx.fill(fx, cpY + 112, fx + 30, cpY + 113, 0x40FFFFFF);
+        // Buttons
+        int by = cpY + cpH - 28;
+        boolean cancelHov = inside(mx, my, cpX + 12, by, 100, 20) && !pickerOpen;
+        boolean createHov = inside(mx, my, cpX + cpW - 12 - 100, by, 100, 20) && !pickerOpen;
+        HudCardRenderer.drawOverlayCard(ctx, cpX + 12, by, 100, 20, 6, cancelHov ? m.activeColor : m.cardColor, cancelHov ? m.activeOpacity : m.cardOpacity);
+        SmoothText.drawText(ctx, "Cancel", cpX + 12 + (100 - SmoothText.measureText("Cancel", BODY_PX)) / 2, by + 6, BODY_PX, m.titleColor);
+        HudCardRenderer.drawOverlayCard(ctx, cpX + cpW - 12 - 100, by, 100, 20, 6, m.accentColor, createHov ? 0.75f : 0.55f);
+        SmoothText.drawText(ctx, "Create", cpX + cpW - 12 - 100 + (100 - SmoothText.measureText("Create", BODY_PX)) / 2, by + 6, BODY_PX, 0xFFFFFFFF);
+    }
+
+    private void field(DrawContext ctx, int x, int y, int w, String value, boolean focused) {
+        ctx.fill(x, y, x + w, y + 16, focused ? 0xCC1A1A26 : 0x99121219);
+        if (focused) {
+            ctx.fill(x, y + 15, x + w, y + 16, menu().accentColor);
+        }
+        String shown = value + (focused ? caret() : "");
+        SmoothText.drawText(ctx, trim(shown, w - 8, BODY_PX), x + 4, y + 4, BODY_PX, 0xFFFFFFFF);
+    }
+
+    private void openCreate(Vec3d pos) {
+        commitEdit();
+        creating = true;
+        cName = "Marker " + (MarkerManager.markers().size() + 1);
+        cx = Integer.toString((int) Math.floor(pos.x));
+        cy = Integer.toString((int) Math.floor(pos.y));
+        cz = Integer.toString((int) Math.floor(pos.z));
+        cColor = menu().accentColor == 0 ? 0xFF7C5CFF : VibeVisualsConfigManager.get().markers.color;
+        cField = 0;
+    }
+
+    private void confirmCreate() {
+        double x = parse(cx), y = parse(cy), z = parse(cz);
+        MarkerManager.add(cName.trim(), new Vec3d(x + 0.5, y, z + 0.5), cColor);
+        creating = false;
+        cField = -1;
+    }
+
+    private Vec3d crosshairPos() {
+        Vec3d pos = client.player != null ? client.player.getLerpedPos(1.0f) : Vec3d.ZERO;
+        HitResult hit = client.crosshairTarget;
+        if (hit != null && hit.getType() != HitResult.Type.MISS) {
+            pos = hit.getPos();
+            if (hit instanceof EntityHitResult eh) {
+                Entity e = eh.getEntity();
+                pos = new Vec3d(e.getX(), e.getY() + e.getHeight() * 0.5, e.getZ());
+            }
+        }
+        return pos;
     }
 
     // ---------- input ----------
 
     @Override
-    public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean dbl) {
+    public boolean mouseClicked(Click click, boolean dbl) {
         double mx = click.x(), my = click.y();
         if (click.button() != 0) return super.mouseClicked(click, dbl);
 
-        if (pickerIndex >= 0) {
+        if (pickerOpen) {
             return pickerClick(mx, my);
         }
+        if (creating) {
+            return createClick(mx, my);
+        }
 
-        // Toolbar.
-        int tbY = panelY + HEADER_H + 3;
+        int tbY = panelY + HEADER_H + 4;
         int bw = (PANEL_W - 20 - 2 * 6) / 3;
-        if (inside(mx, my, panelX + 10, tbY, bw, 20)) { MarkerManager.addAtCrosshair(client); return true; }
-        if (inside(mx, my, panelX + 10 + bw + 6, tbY, bw, 20)) { MarkerManager.addAtPlayer(client); return true; }
+        if (inside(mx, my, panelX + 10, tbY, bw, 20)) { openCreate(crosshairPos()); return true; }
+        if (inside(mx, my, panelX + 10 + bw + 6, tbY, bw, 20)) {
+            openCreate(client.player != null ? client.player.getLerpedPos(1.0f) : Vec3d.ZERO);
+            return true;
+        }
         if (inside(mx, my, panelX + 10 + 2 * (bw + 6), tbY, bw, 20)) { MarkerManager.clear(); commitEdit(); return true; }
 
-        // Rows.
         List<Marker> list = MarkerManager.markers();
         int y = listTop + 4 - scroll;
         for (int i = 0; i < list.size(); i++) {
             if (y + ROW_H >= listTop && y <= listBottom && inside(mx, my, listX, y, listW, ROW_H)) {
                 Marker mk = list.get(i);
-                int sw = 18, swX = listX + 6, swY = y + (ROW_H - sw) / 2;
-                int eyeX = listX + listW - 6 - 16;
-                int trashX = eyeX - 4 - 16;
-                int copyX = (trashX - 6) - textRenderer.getWidth("copy");
-                if (inside(mx, my, swX, swY, sw, sw)) { openPicker(i, mk.color()); return true; }
-                if (inside(mx, my, eyeX, y + 4, 16, 16)) { mk.setVisible(!mk.visible()); MarkerManager.save(); return true; }
-                if (inside(mx, my, trashX, y + 4, 16, 16)) { commitEdit(); MarkerManager.remove(i); return true; }
-                if (inside(mx, my, copyX, y + 16, 34, 12) && client != null) {
+                int sw = 20, swX = listX + 6, swY = y + (ROW_H - sw) / 2;
+                int eyeX = listX + listW - 8 - 12;
+                int trashX = eyeX - 10 - 12;
+                int copyX = (trashX - 8) - SmoothText.measureText("copy", SMALL_PX);
+                if (inside(mx, my, swX, swY, sw, sw)) { openPicker(i, false, mk.color()); return true; }
+                if (inside(mx, my, eyeX, y + 9, 12, 12)) { mk.setVisible(!mk.visible()); MarkerManager.save(); return true; }
+                if (inside(mx, my, trashX, y + 6, 16, 18)) { commitEdit(); MarkerManager.remove(i); return true; }
+                if (inside(mx, my, copyX, y + 18, 34, 12) && client != null) {
                     client.keyboard.setClipboard((int) Math.floor(mk.pos().x) + " " + (int) Math.floor(mk.pos().y) + " " + (int) Math.floor(mk.pos().z));
                     return true;
                 }
-                // Click on the name area → rename.
                 commitEdit();
                 editingIndex = i;
-                editBuffer = mk.name();
+                cName = mk.name();
                 return true;
             }
             y += ROW_H + ROW_GAP;
@@ -209,66 +304,101 @@ public class MarkersScreen extends Screen {
         return super.mouseClicked(click, dbl);
     }
 
+    private boolean createClick(double mx, double my) {
+        int fx = cpX + 12, fw = cpW - 24;
+        int cw = (fw - 2 * 6) / 3;
+        if (inside(mx, my, fx, cpY + 42, fw, 16)) { cField = 0; return true; }
+        if (inside(mx, my, fx, cpY + 76, cw, 16)) { cField = 1; return true; }
+        if (inside(mx, my, fx + cw + 6, cpY + 76, cw, 16)) { cField = 2; return true; }
+        if (inside(mx, my, fx + 2 * (cw + 6), cpY + 76, cw, 16)) { cField = 3; return true; }
+        if (inside(mx, my, fx, cpY + 112, 30, 16)) { openPicker(-1, true, cColor); return true; }
+        int by = cpY + cpH - 28;
+        if (inside(mx, my, cpX + 12, by, 100, 20)) { creating = false; cField = -1; return true; }
+        if (inside(mx, my, cpX + cpW - 12 - 100, by, 100, 20)) { confirmCreate(); return true; }
+        return true; // swallow clicks inside the dialog area
+    }
+
     @Override
-    public boolean mouseDragged(net.minecraft.client.gui.Click click, double dx, double dy) {
-        if (pickerIndex >= 0 && colorDrag != 0) {
-            pickerDrag(click.x(), click.y());
-            return true;
-        }
+    public boolean mouseDragged(Click click, double dx, double dy) {
+        if (pickerOpen && colorDrag != 0) { pickerDrag(click.x(), click.y()); return true; }
         return super.mouseDragged(click, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(net.minecraft.client.gui.Click click) {
-        if (pickerIndex >= 0 && colorDrag != 0) {
+    public boolean mouseReleased(Click click) {
+        if (pickerOpen && colorDrag != 0) {
             colorDrag = 0;
-            MarkerManager.save();
+            if (!pickerForCreate) MarkerManager.save();
             return true;
         }
         return super.mouseReleased(click);
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double hAmount, double vAmount) {
-        if (pickerIndex < 0 && inside(mx, my, listX, listTop, listW, listBottom - listTop)) {
-            scroll = Math.max(0, scroll - (int) Math.round(vAmount * 16));
+    public boolean mouseScrolled(double mx, double my, double h, double v) {
+        if (!pickerOpen && !creating && inside(mx, my, listX, listTop, listW, listBottom - listTop)) {
+            scroll = Math.max(0, scroll - (int) Math.round(v * 16));
             return true;
         }
-        return super.mouseScrolled(mx, my, hAmount, vAmount);
+        return super.mouseScrolled(mx, my, h, v);
     }
 
     @Override
     public boolean keyPressed(KeyInput input) {
-        if (editingIndex >= 0) {
-            int key = input.key();
-            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) { commitEdit(); return true; }
-            if (key == GLFW.GLFW_KEY_ESCAPE) { editingIndex = -1; return true; }
-            if (key == GLFW.GLFW_KEY_BACKSPACE) {
-                if (!editBuffer.isEmpty()) editBuffer = editBuffer.substring(0, editBuffer.length() - 1);
+        int key = input.key();
+        if (editingIndex >= 0 || (creating && cField >= 0)) {
+            if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+                if (creating) confirmCreate(); else commitEdit();
                 return true;
             }
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                if (creating) { creating = false; cField = -1; } else editingIndex = -1;
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_BACKSPACE) { backspace(); return true; }
             return true;
         }
+        if (pickerOpen && key == GLFW.GLFW_KEY_ESCAPE) { closePicker(); return true; }
+        if (creating && key == GLFW.GLFW_KEY_ESCAPE) { creating = false; return true; }
         return super.keyPressed(input);
     }
 
     @Override
     public boolean charTyped(CharInput input) {
+        int cp = input.codepoint();
+        if (cp < ' ' || cp == 127) return super.charTyped(input);
         if (editingIndex >= 0) {
-            int cp = input.codepoint();
-            if (cp >= ' ' && cp != 127 && editBuffer.length() < 32) {
-                editBuffer += new String(Character.toChars(cp));
+            if (cName.length() < 32) cName += new String(Character.toChars(cp));
+            return true;
+        }
+        if (creating && cField >= 0) {
+            String add = new String(Character.toChars(cp));
+            switch (cField) {
+                case 0 -> { if (cName.length() < 32) cName += add; }
+                case 1 -> { if (cx.length() < 10) cx += add; }
+                case 2 -> { if (cy.length() < 10) cy += add; }
+                case 3 -> { if (cz.length() < 10) cz += add; }
             }
             return true;
         }
         return super.charTyped(input);
     }
 
+    private void backspace() {
+        if (editingIndex >= 0) { if (!cName.isEmpty()) cName = cName.substring(0, cName.length() - 1); return; }
+        switch (cField) {
+            case 0 -> { if (!cName.isEmpty()) cName = cName.substring(0, cName.length() - 1); }
+            case 1 -> { if (!cx.isEmpty()) cx = cx.substring(0, cx.length() - 1); }
+            case 2 -> { if (!cy.isEmpty()) cy = cy.substring(0, cy.length() - 1); }
+            case 3 -> { if (!cz.isEmpty()) cz = cz.substring(0, cz.length() - 1); }
+        }
+    }
+
     private void commitEdit() {
         if (editingIndex >= 0) {
             List<Marker> list = MarkerManager.markers();
-            if (editingIndex < list.size() && !editBuffer.isBlank()) {
-                list.get(editingIndex).setName(editBuffer.trim());
+            if (editingIndex < list.size() && !cName.isBlank()) {
+                list.get(editingIndex).setName(cName.trim());
                 MarkerManager.save();
             }
             editingIndex = -1;
@@ -277,33 +407,40 @@ public class MarkersScreen extends Screen {
 
     // ---------- colour picker ----------
 
-    private void openPicker(int index, int argb) {
+    private void openPicker(int markerIndex, boolean forCreate, int argb) {
         commitEdit();
-        pickerIndex = index;
+        pickerOpen = true;
+        pickerForCreate = forCreate;
+        pickerMarker = markerIndex;
         colorDrag = 0;
-        pkA = 1f; // marker colours are opaque; alpha drives nothing here but kept for UI
         float[] hsv = rgbToHsv((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
         pkH = hsv[0]; pkS = hsv[1]; pkV = hsv[2];
     }
 
-    private void applyPicker() {
-        if (pickerIndex < 0) return;
-        List<Marker> list = MarkerManager.markers();
-        if (pickerIndex >= list.size()) { pickerIndex = -1; return; }
-        int[] c = hsvToRgb(pkH, pkS, pkV);
-        list.get(pickerIndex).setColor(0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2]);
+    private void closePicker() {
+        pickerOpen = false;
+        if (!pickerForCreate) MarkerManager.save();
     }
 
-    private void drawPicker(DrawContext ctx, Marker mk) {
-        int sv = 90, bar = 12, gap = 8, pad = 10;
+    private void applyPicker() {
+        int[] c = hsvToRgb(pkH, pkS, pkV);
+        int argb = 0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2];
+        if (pickerForCreate) {
+            cColor = argb;
+        } else {
+            List<Marker> list = MarkerManager.markers();
+            if (pickerMarker >= 0 && pickerMarker < list.size()) list.get(pickerMarker).setColor(argb);
+        }
+    }
+
+    private void drawPicker(DrawContext ctx) {
+        int sv = 96, bar = 12, gap = 8, pad = 10;
         int popW = pad * 2 + sv + gap + bar;
         int popH = pad * 2 + sv + 14;
-        int ax = panelX + PANEL_W / 2 - popW / 2;
-        int ay = panelY + PANEL_H / 2 - popH / 2;
-        HudCardRenderer.drawOverlayCard(ctx, ax, ay, popW, popH, 8, 0xFF0A0A12, 0.96f);
-
+        int ax = width / 2 - popW / 2, ay = height / 2 - popH / 2;
+        HudCardRenderer.drawOverlayCard(ctx, ax, ay, popW, popH, 8, 0xFF0A0A12, 0.98f);
         pkSvX = ax + pad; pkSvY = ay + pad; pkSvSize = sv; pkBarW = bar;
-        pkHueX = pkSvX + sv + gap; pkAlphaX = -1;
+        pkHueX = pkSvX + sv + gap;
 
         int n = 24; float cw = sv / (float) n;
         for (int xi = 0; xi < n; xi++) {
@@ -316,25 +453,20 @@ public class MarkersScreen extends Screen {
         }
         int curX = pkSvX + Math.round(pkS * sv), curY = pkSvY + Math.round((1 - pkV) * sv);
         ctx.fill(curX - 2, curY - 2, curX + 2, curY + 2, 0xFFFFFFFF);
-
         for (int yi = 0; yi < sv; yi++) {
             int[] c = hsvToRgb(yi / (float) (sv - 1), 1f, 1f);
             ctx.fill(pkHueX, pkSvY + yi, pkHueX + bar, pkSvY + yi + 1, 0xFF000000 | (c[0] << 16) | (c[1] << 8) | c[2]);
         }
         int hy = pkSvY + Math.round(pkH * sv);
         ctx.fill(pkHueX - 1, hy - 1, pkHueX + bar + 1, hy + 1, 0xFFFFFFFF);
-
         int[] full = hsvToRgb(pkH, pkS, pkV);
-        String hex = String.format(Locale.ROOT, "#%02X%02X%02X", full[0], full[1], full[2]);
-        ctx.drawText(textRenderer, hex, pkSvX, ay + popH - 11, 0xFFFFFFFF, false);
+        SmoothText.drawText(ctx, String.format(Locale.ROOT, "#%02X%02X%02X", full[0], full[1], full[2]), pkSvX, ay + popH - 11, SMALL_PX, 0xFFFFFFFF);
     }
 
     private boolean pickerClick(double mx, double my) {
-        if (inBox(mx, my, pkSvX, pkSvY, pkSvSize, pkSvSize)) { colorDrag = 1; pickerDrag(mx, my); return true; }
-        if (inBox(mx, my, pkHueX, pkSvY, pkBarW, pkSvSize)) { colorDrag = 2; pickerDrag(mx, my); return true; }
-        // Outside → close + persist.
-        pickerIndex = -1;
-        MarkerManager.save();
+        if (inside(mx, my, pkSvX, pkSvY, pkSvSize, pkSvSize)) { colorDrag = 1; pickerDrag(mx, my); return true; }
+        if (inside(mx, my, pkHueX, pkSvY, pkBarW, pkSvSize)) { colorDrag = 2; pickerDrag(mx, my); return true; }
+        closePicker();
         return true;
     }
 
@@ -350,17 +482,21 @@ public class MarkersScreen extends Screen {
 
     // ---------- helpers ----------
 
-    private String trim(String s, int maxW) {
-        if (textRenderer.getWidth(s) <= maxW) return s;
-        while (s.length() > 1 && textRenderer.getWidth(s + "…") > maxW) s = s.substring(0, s.length() - 1);
-        return s + "…";
+    private static String caret() {
+        return (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
+    }
+
+    private static double parse(String s) {
+        try { return Double.parseDouble(s.trim()); } catch (Exception e) { return 0; }
+    }
+
+    private String trim(String s, int maxW, float px) {
+        if (SmoothText.measureText(s, px) <= maxW) return s;
+        while (s.length() > 1 && SmoothText.measureText(s + "..", px) > maxW) s = s.substring(0, s.length() - 1);
+        return s + "..";
     }
 
     private static boolean inside(double mx, double my, int x, int y, int w, int h) {
-        return mx >= x && mx <= x + w && my >= y && my <= y + h;
-    }
-
-    private static boolean inBox(double mx, double my, int x, int y, int w, int h) {
         return mx >= x && mx <= x + w && my >= y && my <= y + h;
     }
 
