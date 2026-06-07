@@ -67,9 +67,29 @@ public final class MarkerManager {
         save();
     }
 
+    /** Add a marker at the player's own position. */
+    public static void addAtPlayer(MinecraftClient client) {
+        if (client.player == null) {
+            return;
+        }
+        VibeVisualsConfig.MarkersConfig config = VibeVisualsConfigManager.get().markers;
+        while (MARKERS.size() >= config.maxMarkers) {
+            MARKERS.remove(0);
+        }
+        MARKERS.add(new Marker("Marker " + nextId++, client.player.getLerpedPos(1.0f), config.color));
+        save();
+    }
+
     public static void removeLast() {
         if (!MARKERS.isEmpty()) {
             MARKERS.remove(MARKERS.size() - 1);
+            save();
+        }
+    }
+
+    public static void remove(int index) {
+        if (index >= 0 && index < MARKERS.size()) {
+            MARKERS.remove(index);
             save();
         }
     }
@@ -86,6 +106,7 @@ public final class MarkerManager {
         String name;
         double x, y, z;
         int color;
+        boolean visible = true;
     }
 
     public static void load() {
@@ -101,7 +122,9 @@ public final class MarkerManager {
                     if (e == null || e.name == null) {
                         continue;
                     }
-                    MARKERS.add(new Marker(e.name, new Vec3d(e.x, e.y, e.z), e.color));
+                    Marker m = new Marker(e.name, new Vec3d(e.x, e.y, e.z), e.color);
+                    m.setVisible(e.visible);
+                    MARKERS.add(m);
                 }
             }
         } catch (Exception ignored) {
@@ -109,7 +132,7 @@ public final class MarkerManager {
         nextId = MARKERS.size() + 1;
     }
 
-    private static void save() {
+    public static void save() {
         try {
             Files.createDirectories(FILE.getParent());
             List<Entry> out = new ArrayList<>();
@@ -120,6 +143,7 @@ public final class MarkerManager {
                 e.y = m.pos().y;
                 e.z = m.pos().z;
                 e.color = m.color();
+                e.visible = m.visible();
                 out.add(e);
             }
             Files.writeString(FILE, GSON.toJson(out));
@@ -148,12 +172,16 @@ public final class MarkerManager {
             Matrix4f m = matrices.peek().getPositionMatrix();
             MatrixStack.Entry entry = matrices.peek();
             for (Marker marker : MARKERS) {
-                drawBeam(lines, entry, m, camPos, marker, config);
+                if (marker.visible()) {
+                    drawBeam(lines, entry, m, camPos, marker, config);
+                }
             }
         }
 
         for (Marker marker : MARKERS) {
-            drawLabel(tr, matrices, consumers, cam, camPos, marker, config);
+            if (marker.visible()) {
+                drawLabel(tr, matrices, consumers, cam, camPos, marker, config);
+            }
         }
     }
 
@@ -256,6 +284,25 @@ public final class MarkerManager {
         return lum > 140 ? 0xFF101010 : 0xFFFFFFFF;
     }
 
-    public record Marker(String name, Vec3d pos, int color) {
+    /** Mutable waypoint so the markers screen can rename / recolour / toggle. */
+    public static final class Marker {
+        private String name;
+        private final Vec3d pos;
+        private int color;
+        private boolean visible = true;
+
+        public Marker(String name, Vec3d pos, int color) {
+            this.name = name;
+            this.pos = pos;
+            this.color = color;
+        }
+
+        public String name() { return name; }
+        public Vec3d pos() { return pos; }
+        public int color() { return color; }
+        public boolean visible() { return visible; }
+        public void setName(String n) { this.name = n; }
+        public void setColor(int c) { this.color = c; }
+        public void setVisible(boolean v) { this.visible = v; }
     }
 }

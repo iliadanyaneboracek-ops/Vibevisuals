@@ -141,7 +141,7 @@ public class VibeVisualsClient implements ClientModInitializer {
         markersMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.vibevisuals.markers_menu",
                 InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_N,
+                GLFW.GLFW_KEY_LEFT_ALT,
                 CONTROLS_CATEGORY
         ));
 
