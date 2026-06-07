@@ -103,15 +103,16 @@ public final class MarkerManager {
         Vec3d rel = marker.pos().subtract(camPos);
         double dist = rel.length();
 
-        // This render path does NOT perspective-divide the billboard, so the base
-        // size is constant on screen. We add a near-boost so close markers read
-        // bigger, tapering back to the base size by ~10 blocks out.
+        // Constant on-screen size (Xaero-style): the billboard IS perspective-
+        // divided, so scaling the world size proportionally to distance cancels
+        // it out. Clamp the distance so very close / very far markers don't grow
+        // or shrink past sensible limits.
         Vec3d fwd = mc.player != null ? mc.player.getRotationVector() : new Vec3d(0, 0, 1);
         if (rel.dotProduct(fwd) < 0.1) {
             return; // behind the camera
         }
-        double nearBoost = Math.max(1.0, Math.min(2.0, 10.0 / Math.max(2.0, dist)));
-        float base = 0.028f * (float) nearBoost;
+        double scaleDist = Math.max(6.0, Math.min(160.0, dist));
+        float base = (float) (scaleDist * 0.0025);
         float si = base * config.iconScale;
         float st = base * config.textScale;
 
