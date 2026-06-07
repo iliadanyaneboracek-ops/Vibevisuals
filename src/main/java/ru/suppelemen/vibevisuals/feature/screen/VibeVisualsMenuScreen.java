@@ -248,6 +248,8 @@ public class VibeVisualsMenuScreen extends Screen {
                 () -> c.lockSlot.enabled,             v -> c.lockSlot.enabled = v, c.lockSlot));
         features.add(new FeatureEntry(Category.UTILITIES, "Zoom",            "Hold-to-zoom (C)", "Зум по зажатию (C)", ModuleIcon.TARGET,
                 () -> c.zoom.enabled,                 v -> c.zoom.enabled = v, c.zoom));
+        features.add(new FeatureEntry(Category.UTILITIES, "Shulker Preview", "Peek shulker contents (Shift)", "Содержимое шалкера (Shift)", ModuleIcon.GRID,
+                () -> c.shulkerPreview.enabled,       v -> c.shulkerPreview.enabled = v, c.shulkerPreview));
         features.add(new FeatureEntry(Category.UTILITIES, "Streamer Mode",   "Hide coords/name from F3", "Скрыть коорд./ник из F3", ModuleIcon.SHIELD,
                 () -> c.streamerMode.enabled,         v -> c.streamerMode.enabled = v, c.streamerMode));
         features.add(new FeatureEntry(Category.UTILITIES, "Auto Leave",      "Leave when a player is near", "Авто-выход при игроке рядом", ModuleIcon.ARROW_UP,

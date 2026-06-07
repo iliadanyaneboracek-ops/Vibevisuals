@@ -12,6 +12,7 @@
     "GameRendererBobMixin",
     "GameRendererMixin",
     "HandledScreenLockSlotMixin",
+    "HandledScreenMixin",
     "HeldItemRendererInvoker",
     "HeldItemRendererMixin",
     "HungerManagerAccessor",
