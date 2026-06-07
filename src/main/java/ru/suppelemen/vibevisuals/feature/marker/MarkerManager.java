@@ -12,10 +12,15 @@ import net.minecraft.entity.Entity;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Vec3d;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import net.fabricmc.loader.api.FabricLoader;
 import org.joml.Matrix4f;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfig;
 import ru.suppelemen.vibevisuals.config.VibeVisualsConfigManager;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,6 +34,10 @@ import java.util.List;
 public final class MarkerManager {
     private static final List<Marker> MARKERS = new ArrayList<>();
     private static int nextId = 1;
+
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Path FILE =
+            FabricLoader.getInstance().getConfigDir().resolve("vibevisuals/markers.json");
 
     private MarkerManager() {
     }
@@ -55,16 +64,67 @@ public final class MarkerManager {
             MARKERS.remove(0);
         }
         MARKERS.add(new Marker("Marker " + nextId++, pos, config.color));
+        save();
     }
 
     public static void removeLast() {
         if (!MARKERS.isEmpty()) {
             MARKERS.remove(MARKERS.size() - 1);
+            save();
         }
     }
 
     public static void clear() {
         MARKERS.clear();
+        save();
+    }
+
+    // ---- persistence ----
+
+    /** Serializable form of a marker. */
+    private static final class Entry {
+        String name;
+        double x, y, z;
+        int color;
+    }
+
+    public static void load() {
+        MARKERS.clear();
+        try {
+            if (!Files.exists(FILE)) {
+                return;
+            }
+            String json = Files.readString(FILE);
+            Entry[] entries = GSON.fromJson(json, Entry[].class);
+            if (entries != null) {
+                for (Entry e : entries) {
+                    if (e == null || e.name == null) {
+                        continue;
+                    }
+                    MARKERS.add(new Marker(e.name, new Vec3d(e.x, e.y, e.z), e.color));
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        nextId = MARKERS.size() + 1;
+    }
+
+    private static void save() {
+        try {
+            Files.createDirectories(FILE.getParent());
+            List<Entry> out = new ArrayList<>();
+            for (Marker m : MARKERS) {
+                Entry e = new Entry();
+                e.name = m.name();
+                e.x = m.pos().x;
+                e.y = m.pos().y;
+                e.z = m.pos().z;
+                e.color = m.color();
+                out.add(e);
+            }
+            Files.writeString(FILE, GSON.toJson(out));
+        } catch (Exception ignored) {
+        }
     }
 
     public static void render(WorldRenderContext context) {
@@ -123,10 +183,14 @@ public final class MarkerManager {
             focused = fwd.dotProduct(to) > 0.9986; // ~3°
         }
 
+        float op = config.opacity;
         int light = 0xF000F0;
         int markerRgb = marker.color() & 0x00FFFFFF;
-        int iconBg = 0xFF000000 | markerRgb;
-        int iconText = contrastColor(markerRgb);
+        int iconBg = withOpacity(0xFF000000 | markerRgb, op);
+        int iconText = withOpacity(contrastColor(markerRgb), op);
+        int nameColor = withOpacity(0xFFFFFFFF, op);
+        int distColor = withOpacity(0xFFCFE3FF, op);
+        int plateBg = withOpacity(0x90000000, op);
         String initial = marker.name().isBlank() ? "?" : marker.name().substring(0, 1).toUpperCase();
 
         matrices.push();
@@ -147,15 +211,20 @@ public final class MarkerManager {
             Matrix4f lm = matrices.peek().getPositionMatrix();
             float y = (tr.fontHeight * 0.5f * si / st) + 2; // just below the icon
             if (config.showName) {
-                drawCentered(tr, lm, consumers, marker.name(), Math.round(y), 0xFFFFFFFF, 0x90000000, config.throughWalls, light);
+                drawCentered(tr, lm, consumers, marker.name(), Math.round(y), nameColor, plateBg, config.throughWalls, light);
                 y += tr.fontHeight + 1;
             }
             if (config.showDistance) {
-                drawCentered(tr, lm, consumers, (int) Math.round(dist) + "m", Math.round(y), 0xFFCFE3FF, 0x90000000, config.throughWalls, light);
+                drawCentered(tr, lm, consumers, (int) Math.round(dist) + "m", Math.round(y), distColor, plateBg, config.throughWalls, light);
             }
             matrices.pop();
         }
         matrices.pop();
+    }
+
+    private static int withOpacity(int argb, float op) {
+        int a = Math.round(((argb >>> 24) & 0xFF) * op);
+        return (a << 24) | (argb & 0x00FFFFFF);
     }
 
     private static void drawCentered(TextRenderer tr, Matrix4f matrix, VertexConsumerProvider consumers,
